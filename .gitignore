@@ -1,0 +1,7 @@
+playground.py
+training_input.pkl
+training_target.pkl
+validation_input.pkl
+validation_target.pkl
+/training
+/validation
