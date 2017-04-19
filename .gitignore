@@ -5,3 +5,5 @@ validation_input.pkl
 validation_target.pkl
 /training
 /validation
+/ENV
+*.pyc

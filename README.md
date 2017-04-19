@@ -1,6 +1,14 @@
 
-rning Class Inpainting dataset, http://ift6266h17.wordpress.com/ *
+Deeplearning Class Inpainting dataset, http://ift6266h17.wordpress.com/ *
 
+Saving dependencies :   
+pip freeze > requirements.txt  
+
+Installing dependencies :   
+pip instrall -r requirements.txt
+
+Using virtualenv as default commands (deactivate to reverse):  
+source env/bin/activate     
 
 ** Dataset
 
