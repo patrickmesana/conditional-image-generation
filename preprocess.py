@@ -5,7 +5,6 @@ import numpy as np
 import PIL.Image as Image
 import ntpath
 import readsample as rs
-from skimage.transform import resize
 
 def resize_mscoco():
     '''
@@ -142,7 +141,7 @@ def persist_samples_on_disk():
     rs.write_images_to_pkl(validation_target_images, 'validation_target.pkl')
 
 #resize_mscoco()
-show_examples(5, 5, mscoco="/Users/patrickmesana/Dev/inpainting")
-#createInputAndTarget(split="train2014")
-#createInputAndTarget(split="val2014")
-#persist_samples_on_disk()
+#show_examples(5, 5, mscoco="/Users/patrickmesana/Dev/inpainting")
+createInputAndTarget(split="train2014")
+createInputAndTarget(split="val2014")
+persist_samples_on_disk()
