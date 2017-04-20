@@ -1,15 +1,6 @@
 
 Deeplearning Class Inpainting dataset, http://ift6266h17.wordpress.com/ *
 
-Saving dependencies :   
-pip freeze > requirements.txt  
-
-Installing dependencies :   
-pip instrall -r requirements.txt
-
-Using virtualenv as default commands (deactivate to reverse):  
-source env/bin/activate     
-
 ** Dataset
 
 The inpainting dataset is a downsample version of the MSCOCO dataset (http://mscoco.org/dataset/#overview)
@@ -17,11 +8,11 @@ The inpainting dataset is a downsample version of the MSCOCO dataset (http://msc
 The original images in the MSCOCO dataset are high resolution: roughly 500×500 pixels.  While this will give the most interesting results, it would likely be too computationally intensive for a class project (and indeed, for most research projects).  Many successful generative modeling papers still evaluate on 32×32 images.  In fact, there can still be a lot of detail in a 32×32 image!
 
 
-
 Some of the images might be in grayscale instead of RGB, you can just skip those images.
 
 
 ** Files
+http://lisaweb.iro.umontreal.ca/transfert/lisa/datasets/mscoco_inpaiting/
 
 In particular the archive inpainting.tar.bz2 contains:
 - train2014: a directory composed by 82782 training images
@@ -41,3 +32,22 @@ We also show how to construct the input/target from the images and how to visual
 
 
 Please refer to the class website, http://ift6266h17.wordpress.com/project-description/, for more details.
+
+** Useful commands
+
+Saving dependencies :   
+pip freeze > requirements.txt  
+
+Installing dependencies :   
+pip instrall -r requirements.txt
+
+Using virtualenv as default commands (deactivate to reverse):  
+source env/bin/activate
+
+On Windows the easiest way is to use Anaconda python 2.7 and install dependencies such as Theanos like this:  
+conda install theano pygpu  
+Anaconda also allows to create an environment to encapsulate all dependencies for this project  
+
+You can activate the Anaconda environment with the following command 
+activate deeplearning
+
