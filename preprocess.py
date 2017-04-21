@@ -73,9 +73,12 @@ def createInputAndTarget(
         if len(img_array.shape) == 3:
             input = np.copy(img_array)
             input[center[0]-16:center[0]+16, center[1]-16:center[1]+16, :] = 0
+            target = img_array[center[0] - 16:center[0] + 16, center[1] - 16:center[1] + 16, :]
         else:
             input = np.copy(img_array)
             input[center[0]-16:center[0]+16, center[1]-16:center[1]+16] = 0
+            target = img_array[center[0] - 16:center[0] + 16, center[1] - 16:center[1] + 16]
+
 
         sample_name = 'training'
         if split == 'val2014':
@@ -84,9 +87,10 @@ def createInputAndTarget(
         head, tail = ntpath.split(img_path)
         img_name = tail or ntpath.basename(head)
 
-        Image.fromarray(img_array).save('./{sn}/target/{n}'.format(sn=sample_name, n=img_name))
+        Image.fromarray(img_array).save('./{sn}/target-full/{n}'.format(sn=sample_name, n=img_name))
         Image.fromarray(input).save('./{sn}/input/{n}'.format(sn=sample_name, n=img_name))
-       # Image.fromarray(target).save('./{sn}/input/{n}'.format(sn=sample_name, n=img_name))
+        Image.fromarray(target).save('./{sn}/target/{n}'.format(sn=sample_name, n=img_name))
+
 
 def show_examples(batch_idx, batch_size,
                   ### PATH need to be fixed
@@ -132,16 +136,20 @@ def show_examples(batch_idx, batch_size,
 
 def persist_samples_on_disk():
     training_input_images = rs.read_sample_as_tensor(base_path="training/", split="input")
+    training_target_full_images = rs.read_sample_as_tensor(base_path="training/", split="target-full")
     training_target_images = rs.read_sample_as_tensor(base_path="training/", split="target")
     validation_input_images = rs.read_sample_as_tensor(base_path="validation/", split="input")
+    validation_target_full_images = rs.read_sample_as_tensor(base_path="validation/", split="target-full")
     validation_target_images = rs.read_sample_as_tensor(base_path="validation/", split="target")
     rs.write_images_to_pkl(training_input_images, 'training_input.pkl')
+    rs.write_images_to_pkl(training_target_full_images, 'training_target_full.pkl')
     rs.write_images_to_pkl(training_target_images, 'training_target.pkl')
     rs.write_images_to_pkl(validation_input_images, 'validation_input.pkl')
+    rs.write_images_to_pkl(validation_target_full_images, 'validation_target_full.pkl')
     rs.write_images_to_pkl(validation_target_images, 'validation_target.pkl')
 
-#resize_mscoco()
-#show_examples(5, 5, mscoco="/Users/patrickmesana/Dev/inpainting")
+# resize_mscoco()
+# show_examples(5, 5, mscoco="/Users/patrickmesana/Dev/inpainting")
 createInputAndTarget(split="train2014")
 createInputAndTarget(split="val2014")
-persist_samples_on_disk()
+# persist_samples_on_disk()

@@ -1,8 +1,10 @@
 playground.py
 training_input.pkl
 training_target.pkl
+training_target_full.pkl
 validation_input.pkl
 validation_target.pkl
+validation_target_full.pkl
 /training
 /validation
 /inpainting
@@ -10,3 +12,4 @@ validation_target.pkl
 *.pyc
 .idea
 /others
+/saved-predictions
