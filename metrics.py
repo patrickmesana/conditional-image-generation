@@ -11,6 +11,7 @@ def plotSaveLossAndAccuracy(pdfName, history):
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
     pp.savefig()
+    plt.clf()
 
     # summarize history for loss
     plt.plot(history.history['loss'])

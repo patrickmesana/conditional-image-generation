@@ -3,9 +3,9 @@ import numpy as np
 import display
 
 
-def preview_autoencoder_full():
+def preview_full(name):
     x_test_input_unchanged = rs.read_images_from_pkl('validation_input.pkl')
-    imgs = rs.read_images_from_pkl('autoencoder_decoded_full.pkl')
+    imgs = rs.read_images_from_pkl(name)
 
     n = 5
     np_images = []
@@ -19,12 +19,13 @@ def preview_autoencoder_full():
 
 
 
-def preview_autoencoder_middle():
+def preview_middle(name):
     x_test_input_unchanged = rs.read_images_from_pkl('validation_input.pkl')
-    reshaped_decoded_imgs = rs.read_images_from_pkl('autoencoder_decoded.pkl')
+    reshaped_decoded_imgs = rs.read_images_from_pkl(name)
 
 
     display.show_reconstructed_images(x_test_input_unchanged, reshaped_decoded_imgs, True)
 
 
-preview_autoencoder_full()
+# preview_middle('autoencoder_decoded.pkl')
+preview_full('convolution_decoded.pkl')
