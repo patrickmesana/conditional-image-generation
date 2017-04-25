@@ -1,6 +1,6 @@
 # if you want to run this on GPU
 #THEANO_FLAGS="device=gpu,floatX=float32" ENV\Scripts\python.exe autoencoder.py
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization, LeakyReLU
+from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization
 from keras.callbacks import EarlyStopping
 from keras.models import Model
 from keras import regularizers
@@ -10,22 +10,34 @@ import metrics
 
 
 input_img = Input(shape=(64, 64, 3))
-x = Conv2D(32, (3, 3), padding='same')(input_img)
-x = BatchNormalization()(x)
-x = LeakyReLU(0.2)(x)
+
+
+x = Conv2D(16, (3, 3), padding='same')(input_img)
+x = Activation('relu')(x)
+
 x = MaxPooling2D((2, 2), padding='same')(x)
-x = Conv2D(16, (3, 3), padding='same')(x)
-x = BatchNormalization()(x)
-x = LeakyReLU(0.2)(x)
-encoded = MaxPooling2D((2, 2), padding='same')(x)
-x = Conv2D(16, (3, 3), padding='same')(encoded)
-x = BatchNormalization()(x)
-x = LeakyReLU(0.2)(x)
-x = UpSampling2D((2, 2))(x)
+
 x = Conv2D(32, (3, 3), padding='same')(x)
-x = BatchNormalization()(x)
-x = LeakyReLU(0.2)(x)
+x = Activation('relu')(x)
+
+x = MaxPooling2D((2, 2), padding='same')(x)
+
+x = Conv2D(64, (3, 3), padding='same')(x)
+x = Activation('relu')(x)
+
+x = Conv2D(64, (3, 3), padding='same')(x)
+x = Activation('relu')(x)
+
 x = UpSampling2D((2, 2))(x)
+
+x = Conv2D(32, (3, 3), padding='same')(x)
+x = Activation('relu')(x)
+
+x = UpSampling2D((2, 2))(x)
+
+x = Conv2D(16, (3, 3), padding='same')(x)
+x = Activation('relu')(x)
+
 decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
 
 # this model maps an input to its reconstruction
@@ -50,7 +62,7 @@ x_test_target = x_test_target.reshape((len(x_test_target), 64, 64, 3))
 
 early_stopping = EarlyStopping(monitor='val_loss', patience=2)
 history = autoencoder.fit(x_train_input, x_train_target,
-                epochs=30,
+                epochs=50,
                 batch_size=256,
                 shuffle=True,
                 validation_data=(x_test_input, x_test_target),
