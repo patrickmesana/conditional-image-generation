@@ -3,6 +3,7 @@
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization
 from keras.callbacks import EarlyStopping
 from keras.models import Model
+from keras.optimizers import Adam
 from keras import regularizers
 import numpy as np
 import readsample as rs
@@ -11,36 +12,31 @@ import metrics
 
 input_img = Input(shape=(64, 64, 3))
 
+
 x = Conv2D(16, (3, 3), padding='same')(input_img)
-x = BatchNormalization()(x)
 x = Activation('relu')(x)
 
 x = MaxPooling2D((2, 2), padding='same')(x)
 
 x = Conv2D(32, (3, 3), padding='same')(x)
-x = BatchNormalization()(x)
 x = Activation('relu')(x)
 
 x = MaxPooling2D((2, 2), padding='same')(x)
 
 x = Conv2D(64, (3, 3), padding='same')(x)
-x = BatchNormalization()(x)
 x = Activation('relu')(x)
 
 x = Conv2D(64, (3, 3), padding='same')(x)
-x = BatchNormalization()(x)
 x = Activation('relu')(x)
 
 x = UpSampling2D((2, 2))(x)
 
 x = Conv2D(32, (3, 3), padding='same')(x)
-x = BatchNormalization()(x)
 x = Activation('relu')(x)
 
 x = UpSampling2D((2, 2))(x)
 
 x = Conv2D(16, (3, 3), padding='same')(x)
-x = BatchNormalization()(x)
 x = Activation('relu')(x)
 
 decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
@@ -48,7 +44,7 @@ decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
 # this model maps an input to its reconstruction
 autoencoder = Model(input_img, decoded)
 
-autoencoder.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+autoencoder.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy', metrics=['accuracy'])
 
 autoencoder.summary()
 
@@ -65,9 +61,9 @@ x_train_target = x_train_target.reshape((len(x_train_target), 64, 64, 3))
 x_test_input = x_test_input.reshape((len(x_test_input), 64, 64, 3))
 x_test_target = x_test_target.reshape((len(x_test_target), 64, 64, 3))
 
-early_stopping = EarlyStopping(monitor='val_loss', patience=2)
+early_stopping = EarlyStopping(monitor='val_loss', patience=3)
 history = autoencoder.fit(x_train_input, x_train_target,
-                epochs=50,
+                epochs=100,
                 batch_size=256,
                 shuffle=True,
                 validation_data=(x_test_input, x_test_target),
