@@ -12,7 +12,6 @@ import metrics
 
 input_img = Input(shape=(64, 64, 3))
 
-
 x = Conv2D(16, (3, 3), padding='same')(input_img)
 x = Activation('relu')(x)
 
@@ -44,7 +43,7 @@ decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
 # this model maps an input to its reconstruction
 autoencoder = Model(input_img, decoded)
 
-autoencoder.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy', metrics=['accuracy'])
+autoencoder.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
 
 autoencoder.summary()
 
