@@ -1,6 +1,6 @@
 # if you want to run this on GPU
 #THEANO_FLAGS="device=gpu,floatX=float32" ENV\Scripts\python.exe autoencoder.py
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization
+from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization, Dropout
 from keras.callbacks import EarlyStopping
 from keras.models import Model
 from keras.optimizers import Adam
@@ -16,24 +16,28 @@ x = Conv2D(16, (3, 3), padding='same')(input_img)
 x = Activation('relu')(x)
 
 x = MaxPooling2D((2, 2), padding='same')(x)
+x = Dropout(0.25)(x)
 
 x = Conv2D(32, (3, 3), padding='same')(x)
 x = Activation('relu')(x)
 
 x = MaxPooling2D((2, 2), padding='same')(x)
+x = Dropout(0.25)(x)
 
 x = Conv2D(64, (3, 3), padding='same')(x)
 x = Activation('relu')(x)
-
+x = Dropout(0.25)(x)
 x = Conv2D(64, (3, 3), padding='same')(x)
 x = Activation('relu')(x)
 
 x = UpSampling2D((2, 2))(x)
+x = Dropout(0.25)(x)
 
 x = Conv2D(32, (3, 3), padding='same')(x)
 x = Activation('relu')(x)
 
 x = UpSampling2D((2, 2))(x)
+x = Dropout(0.25)(x)
 
 x = Conv2D(16, (3, 3), padding='same')(x)
 x = Activation('relu')(x)
@@ -60,10 +64,10 @@ x_train_target = x_train_target.reshape((len(x_train_target), 64, 64, 3))
 x_test_input = x_test_input.reshape((len(x_test_input), 64, 64, 3))
 x_test_target = x_test_target.reshape((len(x_test_target), 64, 64, 3))
 
-early_stopping = EarlyStopping(monitor='val_loss', patience=3)
+early_stopping = EarlyStopping(monitor='val_loss', patience=5)
 history = autoencoder.fit(x_train_input, x_train_target,
                 epochs=100,
-                batch_size=256,
+                batch_size=300,
                 shuffle=True,
                 validation_data=(x_test_input, x_test_target),
                 callbacks=[early_stopping])
