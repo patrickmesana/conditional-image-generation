@@ -12,32 +12,27 @@ import metrics
 
 input_img = Input(shape=(64, 64, 3))
 
-x = Conv2D(16, (3, 3), padding='same')(input_img)
+x = Conv2D(16, (3, 3), dilation_rate=(4, 4), padding='same')(input_img)
 x = Activation('relu')(x)
 
 x = MaxPooling2D((2, 2), padding='same')(x)
-x = Dropout(0.25)(x)
 
-x = Conv2D(32, (3, 3), padding='same')(x)
+x = Conv2D(32, (3, 3),  dilation_rate=(3, 3), padding='same')(x)
 x = Activation('relu')(x)
 
 x = MaxPooling2D((2, 2), padding='same')(x)
-x = Dropout(0.25)(x)
 
-x = Conv2D(64, (3, 3), padding='same')(x)
+x = Conv2D(64, (3, 3),  dilation_rate=(2, 2), padding='same')(x)
 x = Activation('relu')(x)
-x = Dropout(0.25)(x)
 x = Conv2D(64, (3, 3), padding='same')(x)
 x = Activation('relu')(x)
 
 x = UpSampling2D((2, 2))(x)
-x = Dropout(0.25)(x)
 
 x = Conv2D(32, (3, 3), padding='same')(x)
 x = Activation('relu')(x)
 
 x = UpSampling2D((2, 2))(x)
-x = Dropout(0.25)(x)
 
 x = Conv2D(16, (3, 3), padding='same')(x)
 x = Activation('relu')(x)
