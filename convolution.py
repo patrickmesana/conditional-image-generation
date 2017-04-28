@@ -12,16 +12,30 @@ import metrics
 
 input_img = Input(shape=(64, 64, 3))
 
-x = Conv2D(16, (3, 3), dilation_rate=(3, 3), padding='same')(input_img)
+
+x = Conv2D(16, (3, 3), padding='same')(input_img)
+x = Activation('relu')(x)
+x = Conv2D(16, (3, 3), strides=3)(input_img)
 x = Activation('relu')(x)
 
-x = Conv2D(32, (3, 3),  dilation_rate=(3, 3), padding='same')(x)
+x = Conv2D(32, (3, 3), padding='same')(input_img)
+x = Activation('relu')(x)
+x = Conv2D(32, (3, 3), strides=3)(input_img)
 x = Activation('relu')(x)
 
-x = Conv2D(32, (3, 3), dilation_rate=(3, 3), padding='same')(x)
+x = Conv2D(64, (3, 3),  padding='same')(x)
+x = Activation('relu')(x)
+x = Conv2D(64, (3, 3), padding='same')(x)
 x = Activation('relu')(x)
 
-x = Conv2D(16, (3, 3), dilation_rate=(3, 3), padding='same')(x)
+x = Conv2D(32, (3, 3),  dilation_rate=3)(input_img)
+x = Activation('relu')(x)
+x = Conv2D(32, (3, 3), padding='same')(input_img)
+x = Activation('relu')(x)
+
+x = Conv2D(16, (3, 3),  dilation_rate=3)(input_img)
+x = Activation('relu')(x)
+x = Conv2D(16, (3, 3), padding='same')(input_img)
 x = Activation('relu')(x)
 
 decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
