@@ -12,6 +12,9 @@ def show_reconstructed_images(inputs, outputs, saveImageOnDisk, n = 5):
         Image.fromarray(img_array).show()
         if saveImageOnDisk: Image.fromarray(img_array).save('PredictedImage{i}.jpg'.format(i=i))
 
+def show_images(inputs, n = 5):
+    for i in range(0, n):
+        Image.fromarray(inputs[i]).show()
 
 def show_examples(batch_idx, batch_size,
                   ### PATH need to be fixed

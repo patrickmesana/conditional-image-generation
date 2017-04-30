@@ -7,3 +7,5 @@ playground.py
 *.pyc
 .idea
 /others
+/logs
+**/**/logs

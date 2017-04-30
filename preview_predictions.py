@@ -27,5 +27,10 @@ def preview_middle(name):
     display.show_reconstructed_images(x_test_input_unchanged, reshaped_decoded_imgs, True)
 
 
+def preview_predictions(name):
+    imgs = rs.read_images_from_pkl(name)
+    display.show_images(imgs)
+
 # preview_middle('autoencoder_decoded.pkl')
-preview_full('convolution_decoded.pkl')
+#preview_full('gan_decoded.pkl')
+preview_predictions('gan_decoded.pkl')
