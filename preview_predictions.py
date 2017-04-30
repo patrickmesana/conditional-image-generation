@@ -33,4 +33,4 @@ def preview_predictions(name):
 
 # preview_middle('autoencoder_decoded.pkl')
 #preview_full('gan_decoded.pkl')
-preview_predictions('gan_decoded.pkl')
+preview_predictions('convolution_decoded.pkl')

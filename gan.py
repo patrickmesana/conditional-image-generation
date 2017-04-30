@@ -11,6 +11,7 @@ import keras.models as models
 from keras.layers import Input, merge
 from keras.layers.core import Reshape, Dense, Dropout, Activation, Flatten
 from keras.layers.advanced_activations import LeakyReLU
+from keras.callbacks import ModelCheckpoint
 from keras.activations import *
 from keras.layers.wrappers import TimeDistributed
 from keras.layers.noise import GaussianNoise
@@ -31,14 +32,27 @@ import display
 from matplotlib.backends.backend_pdf import PdfPages
 import copy
 import PIL.Image as Image
+from keras import losses
+
+if os.path.exists('gan_decoded.pkl'):
+    os.remove('gan_decoded.pkl')
+if os.path.exists('gan_summary.pdf'):
+    os.remove('gan_summary.pdf')
+logs_enabled = True
+if logs_enabled:
+    # removes logs if necessary and create it
+    dir = './logs'
+    if os.path.exists(dir):
+        shutil.rmtree(dir)
+    os.makedirs(dir)
+    loss_logs = open('./logs/loss_logs', 'w')
 
 
 def show_denormalized(image):
     Image.fromarray((image * 255).astype('uint8')).show()
 
-logs_enabled = True
-x_train_input = rs.read_images_from_pkl('training_input.pkl')
 
+x_train_input = rs.read_images_from_pkl('training_input.pkl')
 x_train_target = rs.read_images_from_pkl('training_target_full.pkl')
 x_train_input = x_train_input.astype('float32') / 255.
 x_train_target = x_train_target.astype('float32') / 255.
@@ -54,31 +68,32 @@ print('X_train shape:', X_train.shape)
 print(X_train.shape[0], 'train samples')
 print(X_test.shape[0], 'test samples')
 
+
+# the weights are not updated, need to compile again to take into account
+# Freeze weights in the discriminator for stacked training
+def make_disciminator_trainable(net, val):
+    net.trainable = val
+    for l in net.layers:
+        l.trainable = val
+    net.compile(loss='categorical_crossentropy', optimizer=Adam())
+
 shp = X_train.shape[1:]
 dropout_rate = 0.25
-opt = Adam(lr=1e-4)
-dopt = Adam(lr=1e-3)
 
 # Build Generative model ...
-nch = 200
+
 g_input = Input(shape=[100])
-H = Dense(32 * 32 * nch, kernel_initializer='glorot_normal')(g_input)
-H = BatchNormalization()(H)
+H = Dense(64 * 64 * 16, kernel_initializer='glorot_normal')(g_input)
 H = Activation('relu')(H)
-H = Reshape([32, 32, nch])(H)
-H = UpSampling2D(size=(2, 2))(H)
-H = Convolution2D(nch / 2, (3, 3), padding="same", kernel_initializer='glorot_uniform')(H)
-H = BatchNormalization()(H)
+H = Reshape([64, 64, 16])(H)
+H = Convolution2D(16, (3, 3), padding="same", kernel_initializer='glorot_uniform')(H)
 H = Activation('relu')(H)
-H = Convolution2D(nch / 4, (3, 3), padding="same", kernel_initializer='glorot_uniform')(H)
-H = BatchNormalization()(H)
+H = Convolution2D(8, (3, 3), padding="same", kernel_initializer='glorot_uniform')(H)
 H = Activation('relu')(H)
 H = Convolution2D(3, (1, 1), padding="same", kernel_initializer='glorot_uniform')(H)
-
-
 g_V = Activation('sigmoid')(H)
 generator = Model(g_input, g_V)
-generator.compile(loss='binary_crossentropy', optimizer=opt)
+generator.compile(loss='binary_crossentropy', optimizer=Adam())
 generator.summary()
 
 # Build Discriminative model ...
@@ -95,29 +110,8 @@ H = LeakyReLU(0.2)(H)
 H = Dropout(dropout_rate)(H)
 d_V = Dense(2, activation='softmax')(H)
 discriminator = Model(d_input, d_V)
-discriminator.compile(loss='categorical_crossentropy', optimizer=dopt)
+discriminator.compile(loss='categorical_crossentropy', optimizer=Adam())
 discriminator.summary()
-
-
-# the weights are not updated, need to compile again to take into account
-# Freeze weights in the discriminator for stacked training
-def make_disciminator_trainable(net, val):
-    net.trainable = val
-    for l in net.layers:
-        l.trainable = val
-    net.compile(loss='categorical_crossentropy', optimizer=Adam())
-
-
-make_disciminator_trainable(discriminator, False)
-
-# Build stacked GAN model
-gan_input = Input(shape=[100])
-H = generator(gan_input)
-gan_V = discriminator(H)  # set of layers?
-GAN = Model(gan_input, gan_V)
-GAN.compile(loss='categorical_crossentropy', optimizer=opt)
-GAN.summary()
-
 
 def plot_loss(losses):
     with PdfPages('gan_summary.pdf') as pp:
@@ -132,56 +126,65 @@ def plot_loss(losses):
 
 
 
-ntrain = 50000
-# we geneate 10000 indexes of the size of mnist training set.
-trainidx = random.sample(range(0, X_train.shape[0]), ntrain)
-# instead of taking a range we take 100000 random indexes
-XT = X_train[trainidx, :, :, :]
+weights_file_name = './d_pre_weights.hdf5'
+if os.path.isfile(weights_file_name) == False:
+    ntrain = 60000
+    # we geneate 10000 indexes of the size of mnist training set.
+    trainidx = random.sample(range(0, X_train.shape[0]), ntrain)
+    # instead of taking a range we take 100000 random indexes
+    XT = X_train[trainidx, :, :, :]
 
-# Pre-train the discriminator network ... (better weight initialization)
-# noise as input of generative
-noise_gen = np.random.uniform(0, 1, size=[XT.shape[0], 100])
-# transform the noise[100] into an image
-generated_images = generator.predict(noise_gen)
-# create a new set for discriminator containing generated images and real images
-X = np.concatenate((XT, generated_images))
-n = XT.shape[0]
-# 1 if real, 0 if fake image
-y = np.zeros([2 * n, 2])
-y[:n, 1] = 1
-y[n:, 0] = 1
+    # Pre-train the discriminator network ... (better weight initialization)
+    # noise as input of generative
+    noise_gen = np.random.uniform(0, 1, size=[XT.shape[0], 100])
+    # transform the noise[100] into an image
+    generated_images = generator.predict(noise_gen)
+    # create a new set for discriminator containing generated images and real images
+    X = np.concatenate((XT, generated_images))
+    n = XT.shape[0]
+    # 1 if real, 0 if fake image
+    y = np.zeros([2 * n, 2])
+    y[:n, 1] = 1
+    y[n:, 0] = 1
 
-y_hat_before = discriminator.predict(X)
-# train discriminator for 1 epoch
-make_disciminator_trainable(discriminator, True)
-discriminator.fit(X, y, epochs=1, batch_size=128)
+    y_hat_before = discriminator.predict(X)
+    # train discriminator for 1 epoch
+    make_disciminator_trainable(discriminator, True)
+    checkpoint = ModelCheckpoint(filepath=weights_file_name, verbose=1)
+    discriminator.fit(X, y, epochs=1, batch_size=128, callbacks=[checkpoint])
 
-# predict fake or real for the new training set created above
-y_hat = discriminator.predict(X)
+    # predict fake or real for the new training set created above
+    y_hat = discriminator.predict(X)
 
-# Measure accuracy of pre-trained discriminator network
-y_hat_idx = np.argmax(y_hat, axis=1)
-y_idx = np.argmax(y, axis=1)
-diff = y_idx - y_hat_idx
-n_tot = y.shape[0]
-n_rig = (diff == 0).sum()
-acc = n_rig * 100.0 / n_tot
+    # Measure accuracy of pre-trained discriminator network
+    y_hat_idx = np.argmax(y_hat, axis=1)
+    y_idx = np.argmax(y, axis=1)
+    diff = y_idx - y_hat_idx
+    n_tot = y.shape[0]
+    n_rig = (diff == 0).sum()
+    acc = n_rig * 100.0 / n_tot
 
-if logs_enabled:
-    # removes logs if necessary and create it
-    dir = './logs'
-    if os.path.exists(dir):
-        shutil.rmtree(dir)
-    os.makedirs(dir)
-    loss_logs = open('./logs/loss_logs', 'w')
-    loss_logs.write("Accuracy: %0.02f pct (%d of %d) right \n" % (acc, n_rig, n_tot))
+    if logs_enabled:
+        loss_logs.write("Accuracy: %0.02f pct (%d of %d) right \n" % (acc, n_rig, n_tot))
+
+else:
+    print 'Loading saved weights...'
+    discriminator.load_weights(weights_file_name)
+
+# Build stacked GAN model
+gan_input = Input(shape=[100])
+H = generator(gan_input)
+gan_V = discriminator(H)  # set of layers?
+GAN = Model(gan_input, gan_V)
+opt = Adam()
+GAN.compile(loss='categorical_crossentropy', optimizer=opt)
+GAN.summary()
 
 # set up loss storage vector
 losses = {"d": [], "g": []}
 
-
 # Set up our main training loop
-def train_for_n(nb_epoch=5000, BATCH_SIZE=32):
+def train_for_n(nb_epoch=5000, BATCH_SIZE=150):
 
     for e in tqdm(range(nb_epoch)):
 
@@ -197,20 +200,28 @@ def train_for_n(nb_epoch=5000, BATCH_SIZE=32):
         y[BATCH_SIZE:, 0] = 1 # index 0 corresponds to fake images, from 32 to 63
 
         make_disciminator_trainable(discriminator, True)
+        y1_hat_before = discriminator.predict(X)
         d_loss = discriminator.train_on_batch(X, y)
+        y1_hat = discriminator.predict(X)
         losses["d"].append(float(d_loss))
 
         if logs_enabled:
             discriminator.save_weights('./logs/dis_weights_{i}.hdf5'.format(i=e))
 
+
         # train Generator-Discriminator stack on input noise to non-generated output class
         noise_tr = np.random.uniform(0, 1, size=[BATCH_SIZE, 100])
         y2 = np.zeros([BATCH_SIZE, 2])
-        y2[:, 1] = 1 # we set it as if it was real an not fake
+        y2[:, 1] = 1 # we set it as if it was real and not fake
 
         make_disciminator_trainable(discriminator, False)
+        y2_hat_before = GAN.predict(noise_tr)
+        y2_hat_loss = keras.losses.categorical_crossentropy(y2, y2_hat_before).eval()
         g_loss = GAN.train_on_batch(noise_tr, y2)
+        y2_hat = GAN.predict(noise_tr)
+
         losses["g"].append(float(g_loss))
+
         if logs_enabled:
             generator.save_weights('./logs/gen_weights_{i}.hdf5'.format(i=e))
             discriminator.save_weights('./logs/dis_weights_{i}_postgen.hdf5'.format(i=e))
@@ -221,7 +232,7 @@ def train_for_n(nb_epoch=5000, BATCH_SIZE=32):
 
 
 # Train for 6000 epochs at original learning rates
-train_for_n(nb_epoch=200, BATCH_SIZE=150)
+train_for_n(nb_epoch=100, BATCH_SIZE=150)
 
 # Train for 2000 epochs at reduced learning rates
 # opt.lr.set_value(1e-5)
