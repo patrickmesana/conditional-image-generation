@@ -63,15 +63,15 @@ dopt = Adam(lr=1e-3)
 nch = 200
 g_input = Input(shape=[100])
 H = Dense(32 * 32 * nch, kernel_initializer='glorot_normal')(g_input)
-# H = BatchNormalization()(H)
+H = BatchNormalization()(H)
 H = Activation('relu')(H)
 H = Reshape([32, 32, nch])(H)
 H = UpSampling2D(size=(2, 2))(H)
 H = Convolution2D(nch / 2, (3, 3), padding="same", kernel_initializer='glorot_uniform')(H)
-# H = BatchNormalization()(H)
+H = BatchNormalization()(H)
 H = Activation('relu')(H)
 H = Convolution2D(nch / 4, (3, 3), padding="same", kernel_initializer='glorot_uniform')(H)
-# H = BatchNormalization()(H)
+H = BatchNormalization()(H)
 H = Activation('relu')(H)
 H = Convolution2D(3, (1, 1), padding="same", kernel_initializer='glorot_uniform')(H)
 
@@ -132,7 +132,7 @@ def plot_loss(losses):
 
 
 
-ntrain = 10000
+ntrain = 50000
 # we geneate 10000 indexes of the size of mnist training set.
 trainidx = random.sample(range(0, X_train.shape[0]), ntrain)
 # instead of taking a range we take 100000 random indexes
@@ -221,7 +221,7 @@ def train_for_n(nb_epoch=5000, BATCH_SIZE=32):
 
 
 # Train for 6000 epochs at original learning rates
-train_for_n(nb_epoch=1500, BATCH_SIZE=32)
+train_for_n(nb_epoch=200, BATCH_SIZE=150)
 
 # Train for 2000 epochs at reduced learning rates
 # opt.lr.set_value(1e-5)
@@ -234,7 +234,7 @@ train_for_n(nb_epoch=1500, BATCH_SIZE=32)
 # train_for_n(nb_epoch=2000, plt_frq=500, BATCH_SIZE=32)
 
 # Plot the final loss curves
-plot_loss(losses)
+
 
 n_ex = 100
 noise = np.random.uniform(0, 1, size=[n_ex, 100])
@@ -242,6 +242,7 @@ generated_images = generator.predict(noise)
 reshaped_decoded_imgs = generated_images.reshape(n_ex, 64, 64, 3) * 255.
 reshaped_decoded_imgs = reshaped_decoded_imgs.astype('uint8')
 rs.write_images_to_pkl(reshaped_decoded_imgs, 'gan_decoded.pkl')
+plot_loss(losses)
 
 if logs_enabled:
     loss_logs.close()
