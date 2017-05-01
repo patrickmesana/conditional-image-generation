@@ -46,7 +46,7 @@ if logs_enabled:
     if os.path.exists(dir):
         shutil.rmtree(dir)
     os.makedirs(dir)
-    loss_logs = open('./logs/loss_logs', 'w')
+    loss_logs = open('./logs/loss_logs.csv', 'w')
 
 
 def show_denormalized(image):
@@ -119,7 +119,8 @@ decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
 # this model maps an input to its reconstruction
 generator = Model(input_img, decoded)
 generator.load_weights('./g_pre_weights.hdf5')
-generator.compile(optimizer=Adam(0.00001), loss='binary_crossentropy')
+genOpt = Adam(0.00001)
+generator.compile(optimizer=genOpt, loss='binary_crossentropy')
 generator.summary()
 
 # Build Discriminative model ...
@@ -163,7 +164,7 @@ def plot_loss(losses):
         pp.savefig()
         plt.close()
 
-weights_file_name = './d_pre_weights.hdf5'
+weights_file_name = './d_pre_weights.hdf5' #936 from previous
 if os.path.isfile(weights_file_name) == False:
     ntrain = 30000
     # we geneate 10000 indexes of the size of mnist training set.
@@ -199,8 +200,7 @@ if os.path.isfile(weights_file_name) == False:
     n_rig = (diff == 0).sum()
     acc = n_rig * 100.0 / n_tot
 
-    if logs_enabled:
-        loss_logs.write("Accuracy: %0.02f pct (%d of %d) right \n" % (acc, n_rig, n_tot))
+    print "Accuracy: %0.02f pct (%d of %d) right \n" % (acc, n_rig, n_tot)
 
 else:
     print 'Loading saved weights...'
@@ -211,8 +211,7 @@ gan_input = Input(shape=(64, 64, 3))
 H = generator(gan_input)
 gan_V = discriminator(H)  # set of layers?
 GAN = Model(gan_input, gan_V)
-opt = Adam(0.00001)
-GAN.compile(loss='categorical_crossentropy', optimizer=opt)
+GAN.compile(loss='categorical_crossentropy', optimizer=genOpt)
 GAN.summary()
 
 # set up loss storage vector
@@ -225,7 +224,7 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
         start = time.time()
         print 'iteration %d' % e
         print 'training discriminator...'
-        disc_batches = 5
+        disc_batches = 10
         disc_batch_size = disc_batches * BATCH_SIZE
         # Make generative images. X_train.shape[0] = 82611, we take out of this a random batch of 32
         image_batch = X_train[np.random.randint(0, X_train.shape[0], size=disc_batch_size), :, :, :]
@@ -256,7 +255,7 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
         losses["d"].append(float(d_loss))
 
         if logs_enabled:
-            discriminator.save_weights('./logs/dis_weights_{i}.hdf5'.format(i=e))
+            discriminator.save_weights('./logs/d_weights_{i}.hdf5'.format(i=e))
 
         print 'training generator...'
         # train Generator-Discriminator stack on input noise to non-generated output class
@@ -276,16 +275,16 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
         print 'duration : %0.02f' % (end - start)
         print '============================='
         if logs_enabled:
-            generator.save_weights('./logs/gen_weights_{i}.hdf5'.format(i=e))
+            generator.save_weights('./logs/g_weights_{i}.hdf5'.format(i=e))
             # discriminator.save_weights('./logs/dis_weights_{i}_postgen.hdf5'.format(i=e))
 
         if logs_enabled:
-            loss_logs.write('epoch: %d - d_loss: %0.02f - g_loss: %0.02f \n' % (e, d_loss, g_loss))
+            loss_logs.write('%d%0.02f,%0.02f\n' % (e, d_loss, g_loss))
 
 
 
 # Train for 6000 epochs at original learning rates
-train_for_n(nb_iterations=1000, BATCH_SIZE=150)
+train_for_n(nb_iterations=500, BATCH_SIZE=150)
 plot_loss(losses)
 
 n_ex = 100
