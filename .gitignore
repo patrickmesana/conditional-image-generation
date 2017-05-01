@@ -9,3 +9,4 @@ playground.py
 /others
 /logs
 **/**/logs
+*.hdf5
