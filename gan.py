@@ -36,22 +36,27 @@ from keras import losses
 import time
 import gan_generator
 
-if os.path.exists('gan_decoded.pkl'):
-    os.remove('gan_decoded.pkl')
-if os.path.exists('gan_summary.pdf'):
-    os.remove('gan_summary.pdf')
+tmpDir = './tmp'
+if os.path.exists(tmpDir):
+    shutil.rmtree(tmpDir)
+os.makedirs(tmpDir)
+
+if os.path.exists('./tmp/gan_decoded.pkl'):
+    os.remove('./tmp/gan_decoded.pkl')
+if os.path.exists('./tmp/gan_summary.pdf'):
+    os.remove('./tmp/gan_summary.pdf')
 logs_enabled = True
 if logs_enabled:
     # removes logs if necessary and create it
-    dir = './logs'
+    dir = './tmp/logs'
     if os.path.exists(dir):
         shutil.rmtree(dir)
     os.makedirs(dir)
-    loss_logs = open('./logs/loss_logs.csv', 'w')
+    loss_logs = open('./tmp/logs/loss_logs.csv', 'w')
 
 
 def show_denormalized(image, i=0):
-    Image.fromarray((image * 255).astype('uint8')).save('PredictedImage{i}.jpg'.format(i=i))
+    Image.fromarray((image * 255).astype('uint8')).save('./tmp/PredictedImage{i}.jpg'.format(i=i))
 
 
 x_train_input = rs.read_images_from_pkl('training_input.pkl')
@@ -88,61 +93,56 @@ def make_disciminator_trainable(net, val):
 
 shp = X_train.shape[1:]
 generator = gan_generator.model()
-generator.load_weights('./g_pre_weights.hdf5')
-genOpt = Adam(0.00005)
-gan_generator.make_generator_phase1_trainable(generator, False)
+# generator.load_weights('./g_pre_weights.hdf5')
+genOpt = Adam(0.0001)
+# gan_generator.make_generator_phase1_trainable(generator, False)
 generator.compile(optimizer=genOpt, loss='binary_crossentropy')
 generator.summary()
 
 # Build Discriminative model ...
 dropout_rate = 0.2
 d_input = Input(shape=shp)
-H = Convolution2D(16, (3, 3), padding="same")(d_input)
-H = LeakyReLU(0.2)(H)
+H = Convolution2D(8, (3, 3), padding="same")(d_input)
+H = Activation('relu')(H)
 H = Dropout(dropout_rate)(H)
-H = Convolution2D(16, 1, padding="same")(H)
-H = LeakyReLU(0.2)(H)
+H = MaxPooling2D((2, 2))(H)
+H = Convolution2D(16, (3, 3), padding="same")(H)
+H = Activation('relu')(H)
 H = Dropout(dropout_rate)(H)
 H = MaxPooling2D((2, 2))(H)
 H = Convolution2D(32, (3, 3), padding="same")(H)
-H = LeakyReLU(0.2)(H)
-H = Dropout(dropout_rate)(H)
-H = Convolution2D(32, 1, padding="same")(H)
-H = LeakyReLU(0.2)(H)
-H = Dropout(dropout_rate)(H)
-H = MaxPooling2D((2, 2))(H)
-H = Convolution2D(64, (3, 3), padding="same")(H)
-H = LeakyReLU(0.2)(H)
-H = Dropout(dropout_rate)(H)
-H = Convolution2D(64, 1, padding="same")(H)
-H = LeakyReLU(0.2)(H)
-H = Dropout(dropout_rate)(H)
+H = Activation('relu')(H)
 H = Flatten()(H)
-H = Dense(256)(H)
-H = LeakyReLU(0.2)(H)
 H = Dropout(dropout_rate)(H)
 d_V = Dense(2, activation='softmax')(H)
 discriminator = Model(d_input, d_V)
 discriminator.compile(loss='categorical_crossentropy', optimizer=Adam(0.001))
 discriminator.summary()
 
+def clear_plot():
+    plt.clf()
+    plt.cla()
+    plt.close()
+
 def plot_loss(losses):
-    with PdfPages('gan_summary.pdf') as pp:
-        plt.plot(losses["d"])
-        plt.plot(losses["g"])
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('iteration')
-        plt.legend(['disc', 'gen'], loc='upper left')
+    plt.plot(losses["d"])
+    plt.plot(losses["g"])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('iteration')
+    plt.legend(['disc', 'gen'], loc='upper left')
+    plt.show(block=False)
+
+
+def save_plot_to_pdf():
+    with PdfPages('./tmp/gan_summary.pdf') as pp:
         pp.savefig()
         plt.close()
-
-
 
 # discriminator pre-training
 weights_file_name = './d_pre_weights.hdf5' #936 from previous
 if os.path.isfile(weights_file_name) == False:
-    ntrain = 30000
+    ntrain = 10000
     # we geneate 10000 indexes of the size of mnist training set.
     train_input_idx = random.sample(range(0, X_train.shape[0]), ntrain)
     trainidx = random.sample(range(0, X_train.shape[0]), ntrain)
@@ -159,7 +159,7 @@ if os.path.isfile(weights_file_name) == False:
     y[:n, 1] = 1
     y[n:, 0] = 1
 
-    y_hat_before = discriminator.predict(X)
+    # y_hat_before = discriminator.predict(X)
     # train discriminator for 1 epoch
     make_disciminator_trainable(discriminator, True)
     checkpoint = ModelCheckpoint(filepath=weights_file_name, verbose=1)
@@ -217,44 +217,62 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
         y[disc_batch_size:, 0] = 1 # index 0 corresponds to fake images, from 32 to 63
 
         make_disciminator_trainable(discriminator, True)
+
         # y1_hat_before = discriminator.predict(X)
 
         shuffled_indexes = np.arange(disc_batch_size * 2)
         np.random.shuffle(shuffled_indexes)
+        d_losses = []
         for b in range(disc_batches):
             subX1 = BATCH_SIZE * 2 * b
             subX2 = BATCH_SIZE * 2 * (b + 1)
             d_loss = discriminator.train_on_batch(X[shuffled_indexes[subX1:subX2]], y[shuffled_indexes[subX1:subX2]])
+            d_losses.append(d_loss)
 
         # d_history = discriminator.fit(X, y, epochs=1, batch_size=200, shuffle=True)
         # d_loss = d_history.history['loss'][0]
         # y1_hat = discriminator.predict(X)
 
-        print 'd_loss : %0.02f' % d_loss
+        print 'd_losses : ' + str([float(l) for l in d_losses])
         losses["d"].append(float(d_loss))
 
         if logs_enabled:
-            discriminator.save_weights('./logs/d_weights_{i}.hdf5'.format(i=e))
+            discriminator.save_weights('./tmp/logs/d_weights_{i}.hdf5'.format(i=e))
 
         print 'training generator...'
+        make_disciminator_trainable(discriminator, False)
+        gen_batches = 5
+        gen_batch_size = gen_batches * BATCH_SIZE
         # train Generator-Discriminator stack on input noise to non-generated output class
-        image_input_batch_tr = x_train_input[np.random.randint(0, X_train.shape[0], size=BATCH_SIZE), :, :, :]
-        y2 = np.zeros([BATCH_SIZE, 2])
+        image_input_batch_tr = x_train_input[np.random.randint(0, X_train.shape[0], size=gen_batch_size), :, :, :]
+        y2 = np.zeros([gen_batch_size, 2])
         y2[:, 1] = 1 # we set it as if it was real and not fake
 
-        make_disciminator_trainable(discriminator, False)
+        g_shuffled_indexes = np.arange(gen_batch_size)
+        np.random.shuffle(g_shuffled_indexes)
+
+        g_losses = []
+        for b in range(gen_batches):
+            g_subX1 = BATCH_SIZE * b
+            g_subX2 = BATCH_SIZE * (b + 1)
+            g_loss = GAN.train_on_batch(image_input_batch_tr[g_shuffled_indexes[g_subX1:g_subX2]], y2[g_shuffled_indexes[g_subX1:g_subX2]])
+            g_losses.append(g_loss)
+
         # y2_hat_before = GAN.predict(image_input_batch_tr)
         # y2_hat_loss = keras.losses.categorical_crossentropy(y2, y2_hat_before).eval()
-        g_loss = GAN.train_on_batch(image_input_batch_tr, y2)
+        # g_loss = GAN.train_on_batch(image_input_batch_tr, y2)
         # y2_hat = GAN.predict(image_input_batch_tr)
-        print 'g_loss : %0.02f' % g_loss
-        losses["g"].append(float(g_loss))
 
+        print 'g_losses : ' + str([float(l) for l in g_losses])
+        losses["g"].append(float(g_loss))
+        if e > 0:
+            clear_plot()
+        plot_loss(losses)
         end = time.time()
         print 'duration : %0.02f' % (end - start)
         print '============================='
         if logs_enabled:
-            generator.save_weights('./logs/g_weights_{i}.hdf5'.format(i=e))
+            generator.save_weights('./tmp/logs/g_weights_{i}.hdf5'.format(i=e))
             # discriminator.save_weights('./logs/dis_weights_{i}_postgen.hdf5'.format(i=e))
 
         if logs_enabled:
@@ -264,14 +282,14 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
 
 # Train for 6000 epochs at original learning rates
 train_for_n(nb_iterations=1000, BATCH_SIZE=150)
-plot_loss(losses)
+save_plot_to_pdf()
 
 n_ex = 100
 image_input_batch_test = x_test_input[0:n_ex, :, :, :]
 generated_images = generator.predict(image_input_batch_test)
 reshaped_decoded_imgs = generated_images.reshape(n_ex, 64, 64, 3) * 255.
 reshaped_decoded_imgs = reshaped_decoded_imgs.astype('uint8')
-rs.write_images_to_pkl(reshaped_decoded_imgs, 'gan_decoded.pkl')
+rs.write_images_to_pkl(reshaped_decoded_imgs, './tmp/gan_decoded.pkl')
 
 if logs_enabled:
     loss_logs.close()

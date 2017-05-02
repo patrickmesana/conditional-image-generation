@@ -19,28 +19,25 @@ def model():
     input_img = Input(shape=(64, 64, 3))
     x = input_img
     # Phase1: trained during  generator pre training but not during gan training
-    x = Conv2D(16, (3, 3), padding='same', name="phase1_1")(x)
+    x = Conv2D(8, (3, 3), padding='same', name="phase1_1")(x)
     x = Activation('relu', name="phase1_2")(x)
     x = MaxPooling2D((2, 2), padding='same', name="phase1_3")(x)
-    x = Conv2D(32, (3, 3), padding='same', name="phase1_4")(x)
+    x = Conv2D(16, (3, 3), padding='same', name="phase1_4")(x)
     x = Activation('relu', name="phase1_5")(x)
     x = MaxPooling2D((2, 2), padding='same', name="phase1_6")(x)
-    x = Conv2D(64, (3, 3), padding='same', name="phase1_7")(x)
+    x = Conv2D(32, (3, 3), padding='same', name="phase1_7")(x)
     x = Activation('relu', name="phase1_8")(x)
 
     # Phase 2
     # x = GaussianNoise(0.01)(x)
-    x = Conv2D(64, (3, 3), padding='same')(x)
-    x = Activation('relu')(x)
-    x = Dropout(dropout_rate)(x)
-    x = UpSampling2D((2, 2))(x)
-    x = Conv2D(32, (3, 3), padding='same')(x)
-    x = Activation('relu')(x)
-    x = Dropout(dropout_rate)(x)
     x = UpSampling2D((2, 2))(x)
     x = Conv2D(16, (3, 3), padding='same')(x)
     x = Activation('relu')(x)
-    x = Dropout(dropout_rate)(x)
+    # x = Dropout(dropout_rate)(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(8, (3, 3), padding='same')(x)
+    x = Activation('relu')(x)
+    # x = Dropout(dropout_rate)(x)
 
     decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
 
