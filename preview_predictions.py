@@ -2,7 +2,7 @@ import readsample as rs
 import numpy as np
 import display
 
-
+xrange
 def preview_full(name):
     x_test_input_unchanged = rs.read_images_from_pkl('validation_input.pkl')
     imgs = rs.read_images_from_pkl(name)
@@ -34,3 +34,4 @@ def preview_predictions(name):
 # preview_middle('autoencoder_decoded.pkl')
 preview_full('gan_decoded.pkl')
 # preview_predictions('convolution_decoded.pkl')
+# preview_full('gen_pre_train_decoded.pkl')

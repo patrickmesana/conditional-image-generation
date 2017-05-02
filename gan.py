@@ -34,6 +34,7 @@ import copy
 import PIL.Image as Image
 from keras import losses
 import time
+import gan_generator
 
 if os.path.exists('gan_decoded.pkl'):
     os.remove('gan_decoded.pkl')
@@ -49,8 +50,8 @@ if logs_enabled:
     loss_logs = open('./logs/loss_logs.csv', 'w')
 
 
-def show_denormalized(image):
-    Image.fromarray((image * 255).astype('uint8')).show()
+def show_denormalized(image, i=0):
+    Image.fromarray((image * 255).astype('uint8')).save('PredictedImage{i}.jpg'.format(i=i))
 
 
 x_train_input = rs.read_images_from_pkl('training_input.pkl')
@@ -86,62 +87,34 @@ def make_disciminator_trainable(net, val):
     net.compile(loss='categorical_crossentropy', optimizer=Adam())
 
 shp = X_train.shape[1:]
-dropout_rate = 0.25
-
-input_img = Input(shape=(64, 64, 3))
-
-x = Conv2D(16, (3, 3), padding='same')(input_img)
-x = Activation('relu')(x)
-x = Conv2D(16, (3, 3), padding='same')(x)
-x = Activation('relu')(x)
-x = MaxPooling2D((2, 2), padding='same')(x)
-x = Conv2D(32, (3, 3), padding='same')(x)
-x = Activation('relu')(x)
-x = Conv2D(32, (3, 3), padding='same')(x)
-x = Activation('relu')(x)
-x = MaxPooling2D((2, 2), padding='same')(x)
-x = Conv2D(64, (3, 3), padding='same')(x)
-x = Activation('relu')(x)
-x = Conv2D(64, (3, 3), padding='same')(x)
-x = Activation('relu')(x)
-x = UpSampling2D((2, 2))(x)
-x = Conv2D(32, (3, 3), padding='same')(x)
-x = Activation('relu')(x)
-x = Conv2D(32, (3, 3), padding='same')(x)
-x = Activation('relu')(x)
-x = UpSampling2D((2, 2))(x)
-x = Conv2D(16, (3, 3), padding='same')(x)
-x = Activation('relu')(x)
-x = Conv2D(16, (3, 3), padding='same')(x)
-x = Activation('relu')(x)
-decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
-
-# this model maps an input to its reconstruction
-generator = Model(input_img, decoded)
+generator = gan_generator.model()
 generator.load_weights('./g_pre_weights.hdf5')
-genOpt = Adam(0.00001)
+genOpt = Adam(0.00005)
+gan_generator.make_generator_phase1_trainable(generator, False)
 generator.compile(optimizer=genOpt, loss='binary_crossentropy')
 generator.summary()
 
 # Build Discriminative model ...
+dropout_rate = 0.2
 d_input = Input(shape=shp)
 H = Convolution2D(16, (3, 3), padding="same")(d_input)
-H = MaxPooling2D((2, 2))(H)
 H = LeakyReLU(0.2)(H)
 H = Dropout(dropout_rate)(H)
-H = Convolution2D(16, (3, 3), padding="same")(H)
-H = MaxPooling2D((2, 2))(H)
+H = Convolution2D(16, 1, padding="same")(H)
 H = LeakyReLU(0.2)(H)
 H = Dropout(dropout_rate)(H)
+H = MaxPooling2D((2, 2))(H)
 H = Convolution2D(32, (3, 3), padding="same")(H)
-H = MaxPooling2D((2, 2))(H)
 H = LeakyReLU(0.2)(H)
 H = Dropout(dropout_rate)(H)
-H = Convolution2D(32, (3, 3), padding="same")(H)
-H = MaxPooling2D((2, 2))(H)
+H = Convolution2D(32, 1, padding="same")(H)
 H = LeakyReLU(0.2)(H)
 H = Dropout(dropout_rate)(H)
-H = Convolution2D(64, (3, 3), padding="same", strides=(2, 2))(H)
+H = MaxPooling2D((2, 2))(H)
+H = Convolution2D(64, (3, 3), padding="same")(H)
+H = LeakyReLU(0.2)(H)
+H = Dropout(dropout_rate)(H)
+H = Convolution2D(64, 1, padding="same")(H)
 H = LeakyReLU(0.2)(H)
 H = Dropout(dropout_rate)(H)
 H = Flatten()(H)
@@ -164,6 +137,9 @@ def plot_loss(losses):
         pp.savefig()
         plt.close()
 
+
+
+# discriminator pre-training
 weights_file_name = './d_pre_weights.hdf5' #936 from previous
 if os.path.isfile(weights_file_name) == False:
     ntrain = 30000
@@ -224,12 +200,15 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
         start = time.time()
         print 'iteration %d' % e
         print 'training discriminator...'
-        disc_batches = 10
+        disc_batches = 5
         disc_batch_size = disc_batches * BATCH_SIZE
         # Make generative images. X_train.shape[0] = 82611, we take out of this a random batch of 32
         image_batch = X_train[np.random.randint(0, X_train.shape[0], size=disc_batch_size), :, :, :]
         image_input_batch = x_train_input[np.random.randint(0, X_train.shape[0], size=disc_batch_size), :, :, :]
         generated_images = generator.predict(image_input_batch)
+
+        if e % 10 == 0:
+            show_denormalized(generator.predict(x_test_input[0:5])[3], e)
 
         # Train discriminator on generated images, if real then [0, 1], if fake [1, 0]
         X = np.concatenate((image_batch, generated_images))
@@ -284,7 +263,7 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
 
 
 # Train for 6000 epochs at original learning rates
-train_for_n(nb_iterations=500, BATCH_SIZE=150)
+train_for_n(nb_iterations=1000, BATCH_SIZE=150)
 plot_loss(losses)
 
 n_ex = 100
