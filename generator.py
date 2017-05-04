@@ -15,6 +15,7 @@ import keras
 
 weights_file_name = './tmp/g_pre_weights.hdf5'
 
+
 def model():
     dropout_rate = 0.1
     leaking_factor = 0.1
@@ -112,23 +113,33 @@ def train_and_predict():
         print 'starting training...'
         autoencoder.summary()
 
-        # y_hat = autoencoder.predict([x_train_input[0:150], noise_train_input[0:150]]) # TO REMOVE
-        # losses = keras.losses.binary_crossentropy(x_train_target[0:150], y_hat).eval() # TO REMOVE
-        # av_loss = sum(losses) / len(losses) # TO REMOVE
-        # d_loss = autoencoder.train_on_batch([x_train_input[0:150], noise_train_input[0:150]], x_train_target[0:150]) # TO REMOVE
+        # JUST A TEST TO SEE IF CALCULATED LOSS ON PREDICTIONS IS CLOSE TO OUPUT LOSS
+        # for i in range(1, 100):
+        #     y_hat = autoencoder.predict([x_train_input[0:150], noise_train_input[0:150]])  # TO REMOVE
+        #     losses = keras.losses.binary_crossentropy(x_train_target[0:150], y_hat).eval()  # TO REMOVE
+        #     av_loss = np.mean(losses)  # TO REMOVE
+        #     d_loss = autoencoder.train_on_batch([x_train_input[0:150], noise_train_input[0:150]],
+        #                                         x_train_target[0:150])  # TO REMOVE
+        #     print av_loss
+        #     print d_loss
+        #     print '==========='
 
-        history = train(autoencoder, [x_train_input, noise_train_input], x_train_target, [x_test_input, noise_test_input], x_test_target)
+
+        history = train(autoencoder, [x_train_input, noise_train_input], x_train_target,
+                        [x_test_input, noise_test_input], x_test_target)
         print(history.history.keys())
         metrics.plotSaveLossAndAccuracy('./tmp/gen_pre_train_summary.pdf', history)
 
     print 'starting predicting...'
     predict(autoencoder, [x_test_input, noise_test_input], x_test_target)
 
+
 def make_generator_phase1_trainable(net, val):
     for i in range(1, 9):
         i_name = 'phase1_%d' % i
         l = net.get_layer(i_name)
         l.trainable = val
+
 
 if __name__ == "__main__":
     train_and_predict()
