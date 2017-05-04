@@ -1,7 +1,7 @@
 # if you want to run this on GPU
 # THEANO_FLAGS="device=gpu,floatX=float32" ENV\Scripts\python.exe autoencoder.py
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization, Dropout, \
-    GaussianNoise
+    GaussianNoise, LeakyReLU, Deconv2D, Flatten, Reshape, Concatenate
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
 from keras.optimizers import Adam
@@ -10,39 +10,50 @@ import numpy as np
 import readsample as rs
 import metrics
 import os.path
+import shutil
+import keras
 
-weights_file_name = './g_pre_weights.hdf5'
-
+weights_file_name = './tmp/g_pre_weights.hdf5'
 
 def model():
     dropout_rate = 0.1
+    leaking_factor = 0.1
     input_img = Input(shape=(64, 64, 3))
     x = input_img
     # Phase1: trained during  generator pre training but not during gan training
-    x = Conv2D(8, (3, 3), padding='same', name="phase1_1")(x)
-    x = Activation('relu', name="phase1_2")(x)
-    x = MaxPooling2D((2, 2), padding='same', name="phase1_3")(x)
-    x = Conv2D(16, (3, 3), padding='same', name="phase1_4")(x)
-    x = Activation('relu', name="phase1_5")(x)
-    x = MaxPooling2D((2, 2), padding='same', name="phase1_6")(x)
-    x = Conv2D(32, (3, 3), padding='same', name="phase1_7")(x)
-    x = Activation('relu', name="phase1_8")(x)
+    x = Conv2D(8, 3, padding='same', strides=2)(x)
+    x = LeakyReLU(0)(x)
+    x = Conv2D(16, 3, padding='same', strides=2)(x)
+    x = LeakyReLU(0)(x)
+    x = Conv2D(32, 3, padding='same', strides=2)(x)
+    x = LeakyReLU(0)(x)
+    x = Conv2D(64, 3, padding='same', strides=2)(x)
+    x = LeakyReLU(0)(x)
+
+    input_noise = Input(shape=[100])
+    noise = Dense(4 * 4 * 64)(input_noise)
+    noise = LeakyReLU(leaking_factor)(noise)
+    noise = Reshape([4, 4, 64])(noise)
+    x = Concatenate()([x, noise])
 
     # Phase 2
-    # x = GaussianNoise(0.01)(x)
-    x = UpSampling2D((2, 2))(x)
-    x = Conv2D(16, (3, 3), padding='same')(x)
-    x = Activation('relu')(x)
-    # x = Dropout(dropout_rate)(x)
-    x = UpSampling2D((2, 2))(x)
-    x = Conv2D(8, (3, 3), padding='same')(x)
-    x = Activation('relu')(x)
-    # x = Dropout(dropout_rate)(x)
+    x = Deconv2D(64, 3, padding='same')(x)
+    x = LeakyReLU(leaking_factor)(x)
+    x = Dropout(dropout_rate)(x)
+    x = Deconv2D(32, 3, padding='same', strides=2)(x)
+    x = LeakyReLU(leaking_factor)(x)
+    x = Dropout(dropout_rate)(x)
+    x = Deconv2D(16, 3, padding='same', strides=2)(x)
+    x = LeakyReLU(leaking_factor)(x)
+    x = Dropout(dropout_rate)(x)
+    x = Deconv2D(8, 3, padding='same', strides=2)(x)
+    x = LeakyReLU(leaking_factor)(x)
+    x = Dropout(dropout_rate)(x)
 
-    decoded = Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
+    decoded = Deconv2D(3, 3, activation='sigmoid', strides=2, padding='same')(x)
 
     # this model maps an input to its reconstruction
-    autoencoder = Model(input_img, decoded)
+    autoencoder = Model([input_img, input_noise], decoded)
 
     return autoencoder
 
@@ -63,14 +74,15 @@ def load_data():
     return x_train_input, x_train_target, x_test_input, x_test_target
 
 
-def train(autoencoder, x_train_input, x_train_target, x_test_input, x_test_target):
+def train(autoencoder, train_input, x_train_target, test_input, x_test_target):
     early_stopping = EarlyStopping(monitor='val_loss', patience=5)
     checkpoint = ModelCheckpoint(filepath=weights_file_name, verbose=1, save_best_only=True)
-    history = autoencoder.fit(x_train_input, x_train_target,
-                              epochs=10,
+
+    history = autoencoder.fit(train_input, x_train_target,
+                              epochs=200,
                               batch_size=250,
                               shuffle=True,
-                              validation_data=(x_test_input, x_test_target),
+                              validation_data=(test_input, x_test_target),
                               callbacks=[early_stopping, checkpoint])
 
     return history
@@ -81,24 +93,36 @@ def predict(autoencoder, x_test_input, x_test_target):
     decoded_imgs = autoencoder.predict(x_test_input)
     reshaped_decoded_imgs = decoded_imgs.reshape(len(x_test_target), 64, 64, 3) * 255.
     reshaped_decoded_imgs = reshaped_decoded_imgs.astype('uint8')
-    rs.write_images_to_pkl(reshaped_decoded_imgs, 'gen_pre_train_decoded.pkl')
+    rs.write_images_to_pkl(reshaped_decoded_imgs, './tmp/gen_pre_train_decoded.pkl')
 
 
 def train_and_predict():
     x_train_input, x_train_target, x_test_input, x_test_target = load_data()
     autoencoder = model()
-    autoencoder.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
+    noise_train_input = np.random.uniform(0, 1, size=[x_train_input.shape[0], 100])
+    noise_test_input = np.random.uniform(0, 1, size=[x_test_input.shape[0], 100])
     if os.path.isfile(weights_file_name):
         autoencoder.load_weights(weights_file_name)
     else:
+        tmpDir = './tmp'
+        if os.path.exists(tmpDir):
+            shutil.rmtree(tmpDir)
+        os.makedirs(tmpDir)
+        autoencoder.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
         print 'starting training...'
         autoencoder.summary()
-        history = train(autoencoder, x_train_input, x_train_target, x_test_input, x_test_target)
+
+        # y_hat = autoencoder.predict([x_train_input[0:150], noise_train_input[0:150]]) # TO REMOVE
+        # losses = keras.losses.binary_crossentropy(x_train_target[0:150], y_hat).eval() # TO REMOVE
+        # av_loss = sum(losses) / len(losses) # TO REMOVE
+        # d_loss = autoencoder.train_on_batch([x_train_input[0:150], noise_train_input[0:150]], x_train_target[0:150]) # TO REMOVE
+
+        history = train(autoencoder, [x_train_input, noise_train_input], x_train_target, [x_test_input, noise_test_input], x_test_target)
         print(history.history.keys())
-        metrics.plotSaveLossAndAccuracy('gen_pre_train_summary.pdf', history)
+        metrics.plotSaveLossAndAccuracy('./tmp/gen_pre_train_summary.pdf', history)
 
     print 'starting predicting...'
-    predict(autoencoder, x_test_input, x_test_target)
+    predict(autoencoder, [x_test_input, noise_test_input], x_test_target)
 
 def make_generator_phase1_trainable(net, val):
     for i in range(1, 9):
@@ -106,5 +130,5 @@ def make_generator_phase1_trainable(net, val):
         l = net.get_layer(i_name)
         l.trainable = val
 
-
-# train_and_predict()
+if __name__ == "__main__":
+    train_and_predict()

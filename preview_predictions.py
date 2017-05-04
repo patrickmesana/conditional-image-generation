@@ -32,6 +32,7 @@ def preview_predictions(name):
     display.show_images(imgs)
 
 # preview_middle('autoencoder_decoded.pkl')
-preview_full('gan_decoded.pkl')
+# preview_full('gan_decoded.pkl')
 # preview_predictions('convolution_decoded.pkl')
-# preview_full('gen_pre_train_decoded.pkl')
+# preview_predictions('./tmp/gen_pre_train_decoded.pkl')
+preview_full('./tmp/gen_pre_train_decoded.pkl')

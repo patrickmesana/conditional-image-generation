@@ -10,3 +10,4 @@ playground.py
 /logs
 **/**/logs
 *.hdf5
+/tmp
