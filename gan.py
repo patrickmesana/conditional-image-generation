@@ -37,8 +37,12 @@ if logs_enabled:
     loss_logs = open('./tmp/logs/loss_logs.csv', 'w')
 
 
-def show_denormalized(image, i=0):
-    Image.fromarray((image * 255).astype('uint8')).save('./tmp/PredictedImage{i}.jpg'.format(i=i))
+def show_denormalized(image, i=0, saving=True):
+    img = Image.fromarray((image * 255).astype('uint8'))
+    if saving:
+        img.save('./tmp/PredictedImage{i}.jpg'.format(i=i))
+    else:
+        img.show()
 
 
 x_train_input = rs.read_images_from_pkl('training_input.pkl')
@@ -57,6 +61,8 @@ x_test_input = x_test_input.reshape((len(x_test_input), 64, 64, 3))
 
 X_train = x_train_target
 X_test = x_train_target
+disc_learning_rate = 0.00001
+gen_learning_rate = disc_learning_rate
 
 print np.min(X_train), np.max(X_train)
 
@@ -71,25 +77,32 @@ def make_disciminator_trainable(net, val):
     net.trainable = val
     for l in net.layers:
         l.trainable = val
-    net.compile(loss='categorical_crossentropy', optimizer=Adam())
+    net.compile(loss='categorical_crossentropy', optimizer=Adam(disc_learning_rate))
 
 
 gen = generator.model()
 # gen.load_weights('./g_pre_weights.hdf5')
-genOpt = Adam(0.00001)
+genOpt = Adam(gen_learning_rate)
 # gan_generator.make_generator_phase1_trainable(generator, False)
 gen.compile(optimizer=genOpt, loss='binary_crossentropy')
 gen.summary()
 
 # Build Discriminative model ...
 disc = discriminator.model()
-disc.compile(loss='mean_squared_error', optimizer=Adam(0.001))
+weights_file_name = './d_pre_weights.hdf5'
+if os.path.isfile(weights_file_name):
+    print 'Loading saved disc weights...'
+    disc.load_weights(weights_file_name)
+
+disc.compile(loss='categorical_crossentropy', optimizer=Adam(disc_learning_rate))
 disc.summary()
+
 
 def clear_plot():
     plt.clf()
     plt.cla()
     plt.close()
+
 
 def plot_loss(losses):
     plt.plot(losses["d"])
@@ -107,22 +120,93 @@ def save_plot_to_pdf():
         plt.close()
 
 
-
 # Build stacked GAN model
 gan_input = Input(shape=(64, 64, 3))
 noise_shape = Input(shape=[100])
 H = gen([gan_input, noise_shape])
 gan_V = disc(H)  # set of layers?
 GAN = Model([gan_input, noise_shape], gan_V)
-GAN.compile(loss='mean_squared_error', optimizer=genOpt)
+GAN.compile(loss='categorical_crossentropy', optimizer=genOpt)
 GAN.summary()
 
 # set up loss storage vector
 losses = {"d": [], "g": []}
 
-# Set up our main training loop
-def train_for_n(nb_iterations=100, BATCH_SIZE=150):
 
+def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_iterations=2000, batch_size=150,
+          disc_train_batches=5, gen_train_batches=1):
+    # number of examples in data to select
+    disc_unsafe_train_n = disc_train_batches * batch_size
+    gen_unsafe_train_n = gen_train_batches * batch_size
+
+    for e in range(nb_iterations):
+        start = time.time()
+
+        # saving predicted images to show progress
+        if e % 10 == 0:
+            noise5 = np.random.uniform(0, 1, size=[5, 100])
+            show_denormalized(gen.predict([x_test_input[0:5], noise5])[3], e)
+
+        # ==== training discriminator =====
+        print 'training discriminator'
+        make_disciminator_trainable(disc, True)
+        d_history = discriminator.train(gen_model, disc_model, training_set_cropped, training_set_full,
+                                        disc_unsafe_train_n,
+                                        batch_size)
+        d_loss = d_history.history['loss'][0]
+        losses["d"].append(float(d_loss))
+        if logs_enabled:
+            disc.save_weights('./tmp/logs/d_weights_{i}.hdf5'.format(i=e))
+
+        # ==== training generator =====
+        print 'training generator'
+        make_disciminator_trainable(disc, False)
+        g_history = fit(GAN, batch_size, gen_unsafe_train_n, training_set_cropped, training_set_full)
+
+        g_loss = g_history.history['loss'][0]
+        losses["g"].append(float(g_loss))
+        if logs_enabled:
+            gen.save_weights('./tmp/logs/g_weights_{i}.hdf5'.format(i=e))
+
+        end = time.time()
+        print 'duration : %0.02f' % (end - start)
+        print '============================='
+
+        if logs_enabled:
+            loss_logs.write('%d%0.02f,%0.02f\n' % (e, d_loss, g_loss))
+
+        if e > 0:
+            clear_plot()
+        plot_loss(losses)
+
+
+def fit(gan_model, batch_size, gen_unsafe_train_n, training_set_cropped, training_set_full):
+    # Creating a set of random index in the range of 0:ntrain
+    training_set_size = training_set_full.shape[0]
+    shuffled_indexes = np.arange(training_set_size)
+    np.random.shuffle(shuffled_indexes)
+    training_indexes = shuffled_indexes[0:gen_unsafe_train_n]
+    # Selecting the images (full and cropped) for training
+    training_cropped_selected = training_set_cropped[training_indexes, :, :, :]
+    training_full_selected = training_set_full[training_indexes, :, :, :]
+    # transform the noise[100] into an image
+    noise = np.random.uniform(0, 1, size=[gen_unsafe_train_n, 100])
+    x = [training_cropped_selected, noise]
+    train_n = training_full_selected.shape[0]
+    y = np.zeros([train_n, 2])
+    y[:train_n, 1] = 1
+    g_history = gan_model.fit(x, y, epochs=1, shuffle='batch', batch_size=batch_size)
+    return g_history
+
+
+# Set up our main training loop
+def train_for_n_with_batches(nb_iterations=100, BATCH_SIZE=150):
+    """
+    NOT IMPLEMENTED
+    :param nb_iterations:
+    :param BATCH_SIZE:
+    :return:
+    """
     for e in range(nb_iterations):
         start = time.time()
         print 'iteration %d' % e
@@ -171,7 +255,7 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
             if b % 2 == 0:
                 sub_batch1 = X_1[shuffled_indexes[subX1:subX2]]
                 sub_target1 = y_1[shuffled_indexes[subX1:subX2]]
-                sub_noise = np.random.uniform(0, 1, size=[BATCH_SIZE, 100]) # TO REMOVE
+                sub_noise = np.random.uniform(0, 1, size=[BATCH_SIZE, 100])  # TO REMOVE
                 sub_predict1 = GAN.predict([sub_batch1, sub_noise])  # TO REMOVE
                 sub_y_hat_loss1 = keras.losses.mean_squared_error(sub_target1, sub_predict1).eval()  # TO REMOVE
                 av_loss1 = sum(sub_y_hat_loss1) / len(sub_y_hat_loss1)
@@ -180,7 +264,7 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
             else:
                 sub_batch2 = X_2[shuffled_indexes[subX1:subX2]]
                 sub_target2 = y_2[shuffled_indexes[subX1:subX2]]
-                sub_noise = np.random.uniform(0, 1, size=[BATCH_SIZE, 100]) # TO REMOVE
+                sub_noise = np.random.uniform(0, 1, size=[BATCH_SIZE, 100])  # TO REMOVE
                 sub_predict2 = GAN.predict([sub_batch2, sub_noise])  # TO REMOVE
                 sub_y_hat_loss2 = keras.losses.categorical_crossentropy(sub_target2, sub_predict2).eval()  # TO REMOVE
                 d_loss2 = disc.train_on_batch(sub_batch2, sub_target2)
@@ -188,11 +272,11 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
             print 'it:%d d_loss:%f' % (b, d_loss)
             d_losses.append(d_loss)
 
-        test_noise11 = np.random.uniform(0, 1, size=[disc_batch_size, 100]) #TO REMOVE
-        y11_hat = GAN.predict([X_1, test_noise11])#TO REMOVE
+        test_noise11 = np.random.uniform(0, 1, size=[disc_batch_size, 100])  # TO REMOVE
+        y11_hat = GAN.predict([X_1, test_noise11])  # TO REMOVE
         y11_hat_loss = keras.losses.categorical_crossentropy(y_1, y11_hat).eval()  # TO REMOVE
-        test_noise12 = np.random.uniform(0, 1, size=[disc_batch_size, 100]) #TO REMOVE
-        y12_hat = GAN.predict([X_2, test_noise12])#TO REMOVE
+        test_noise12 = np.random.uniform(0, 1, size=[disc_batch_size, 100])  # TO REMOVE
+        y12_hat = GAN.predict([X_2, test_noise12])  # TO REMOVE
         y12_hat_loss = keras.losses.categorical_crossentropy(y_2, y12_hat).eval()  # TO REMOVE
 
         print 'd_losses : ' + str([float(l) for l in d_losses])
@@ -209,13 +293,13 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
         image_input_batch_tr = x_train_input[np.random.randint(0, X_train.shape[0], size=gen_batch_size), :, :, :]
 
         y2 = np.zeros([gen_batch_size, 2])
-        y2[:, 1] = 1 # we set it as if it was real and not fake
+        y2[:, 1] = 1  # we set it as if it was real and not fake
 
         g_shuffled_indexes = np.arange(gen_batch_size)
         np.random.shuffle(g_shuffled_indexes)
 
-        test_noise2 = np.random.uniform(0, 1, size=[gen_batch_size, 100]) #TO REMOVE
-        y2_hat_before = GAN.predict([image_input_batch_tr, test_noise2])#TO REMOVE
+        test_noise2 = np.random.uniform(0, 1, size=[gen_batch_size, 100])  # TO REMOVE
+        y2_hat_before = GAN.predict([image_input_batch_tr, test_noise2])  # TO REMOVE
         y2_hat_loss = keras.losses.categorical_crossentropy(y2, y2_hat_before).eval()  # TO REMOVE
 
         g_losses = []
@@ -223,11 +307,11 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
             g_subX1 = BATCH_SIZE * b
             g_subX2 = BATCH_SIZE * (b + 1)
             g_noise_X = np.random.uniform(0, 1, size=[BATCH_SIZE, 100])
-            g_loss = GAN.train_on_batch([image_input_batch_tr[g_shuffled_indexes[g_subX1:g_subX2]], g_noise_X], y2[g_shuffled_indexes[g_subX1:g_subX2]])
+            g_loss = GAN.train_on_batch([image_input_batch_tr[g_shuffled_indexes[g_subX1:g_subX2]], g_noise_X],
+                                        y2[g_shuffled_indexes[g_subX1:g_subX2]])
             g_losses.append(g_loss)
 
-
-        y2_hat = GAN.predict([image_input_batch_tr, test_noise2])#TO REMOVE
+        y2_hat = GAN.predict([image_input_batch_tr, test_noise2])  # TO REMOVE
 
         print 'g_losses : ' + str([float(l) for l in g_losses])
         losses["g"].append(float(g_loss))
@@ -245,11 +329,11 @@ def train_for_n(nb_iterations=100, BATCH_SIZE=150):
             loss_logs.write('%d%0.02f,%0.02f\n' % (e, d_loss, g_loss))
 
 
-
 # Train for 6000 epochs at original learning rates
-train_for_n(nb_iterations=1000, BATCH_SIZE=32)
-save_plot_to_pdf()
+train(gen, disc, x_train_input, x_train_target)
+print 'finished training'
 
+save_plot_to_pdf()
 n_ex = 100
 image_input_batch_test = x_test_input[0:n_ex, :, :, :]
 noise_test_input = np.random.uniform(0, 1, size=[n_ex, 100])

@@ -58,7 +58,6 @@ def model():
 
     return autoencoder
 
-
 def load_data():
     x_train_input = rs.read_images_from_pkl('training_input.pkl')
     x_train_target = rs.read_images_from_pkl('training_target_full.pkl')
