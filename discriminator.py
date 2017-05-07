@@ -14,6 +14,7 @@ import theano.tensor as T
 
 tmp_weights_file_name = './tmp/d_pre_weights.hdf5'
 weights_file_name = './d_pre_weights.hdf5'
+gen_weights_file_name = './g_pre_weights.hdf5'
 
 
 def train(gen, disc, training_set_cropped, training_set_full, unsafe_train_n, batch_size=100, epochs=1, accuracy_enable=False):
@@ -72,7 +73,7 @@ def accuracy(y, y_hat):
     return acc, n_rig, n_tot
 
 
-def fit(disc, x, y, batch_size, epochs=20):
+def fit(disc, x, y, batch_size, epochs=1):
     checkpoint = ModelCheckpoint(filepath=tmp_weights_file_name, verbose=1)
     d_loss = disc.fit(x, y, epochs=epochs, shuffle='batch', batch_size=batch_size, callbacks=[checkpoint])
     return d_loss
@@ -182,12 +183,13 @@ def main():
     disc.summary()
     gen = generator.model()
 
+    gen.load_weights(gen_weights_file_name)
     # disc.load_weights(weights_file_name)
 
     gen.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
     x_train_input, x_train_target, x_test_input, x_test_target = load_data()
 
-    train(gen, disc, x_train_input, x_train_target, 50000, accuracy_enable=True, epochs=1)
+    train(gen, disc, x_train_input, x_train_target, 82000, accuracy_enable=True, epochs=10)
 
     # print 'Data loaded'
     # if not os.path.isfile(weights_file_name):

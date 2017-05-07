@@ -79,7 +79,7 @@ def train(autoencoder, train_input, x_train_target, test_input, x_test_target):
     checkpoint = ModelCheckpoint(filepath=weights_file_name, verbose=1, save_best_only=True)
 
     history = autoencoder.fit(train_input, x_train_target,
-                              epochs=200,
+                              epochs=100,
                               batch_size=250,
                               shuffle=True,
                               validation_data=(test_input, x_test_target),

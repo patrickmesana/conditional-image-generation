@@ -61,7 +61,7 @@ x_test_input = x_test_input.reshape((len(x_test_input), 64, 64, 3))
 
 X_train = x_train_target
 X_test = x_train_target
-disc_learning_rate = 0.00001
+disc_learning_rate = 0.000001
 gen_learning_rate = disc_learning_rate
 
 print np.min(X_train), np.max(X_train)
@@ -81,8 +81,11 @@ def make_disciminator_trainable(net, val):
 
 
 gen = generator.model()
-# gen.load_weights('./g_pre_weights.hdf5')
+gen_weights_file_name = './g_pre_weights.hdf5'
 genOpt = Adam(gen_learning_rate)
+if os.path.isfile(gen_weights_file_name):
+    print 'Loading saved gen weights...'
+    gen.load_weights(gen_weights_file_name)
 # gan_generator.make_generator_phase1_trainable(generator, False)
 gen.compile(optimizer=genOpt, loss='binary_crossentropy')
 gen.summary()
