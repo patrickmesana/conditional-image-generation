@@ -92,6 +92,18 @@ def createInputAndTarget(
         Image.fromarray(target).save('./{sn}/target/{n}'.format(sn=sample_name, n=img_name))
 
 
+
+def create_full_with_middle(imgs):
+    n = len(imgs)
+    np_images = []
+    for i in range(0, n):
+        img_array = imgs[i]
+        black_img = np.zeros([64, 64, 3], dtype=np.uint8)
+        center = (int(np.floor(black_img.shape[0] / 2.)), int(np.floor(black_img.shape[1] / 2.)))
+        black_img[center[0] - 16:center[0] + 16, center[1] - 16:center[1] + 16, :] = img_array
+        np_images.append(img_array)
+    return np_images
+
 def persist_samples_on_disk():
     training_input_images = rs.read_sample_as_tensor(base_path="training/", split="input")
     training_target_full_images = rs.read_sample_as_tensor(base_path="training/", split="target-full")
@@ -111,3 +123,8 @@ def persist_samples_on_disk():
 createInputAndTarget(split="train2014")
 createInputAndTarget(split="val2014")
 persist_samples_on_disk()
+
+# rs.write_images_to_pkl(create_full_with_middle(x_train_target), 'training_target2.pkl')
+# saved_images1 = rs.read_images_from_pkl('training_target2.pkl')
+# rs.write_images_to_pkl(create_full_with_middle(x_test_target), 'validation_target2.pkl')
+# saved_images2 = rs.read_images_from_pkl('validation_target2.pkl')

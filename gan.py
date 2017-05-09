@@ -81,12 +81,19 @@ def make_disciminator_trainable(net, val):
 
 
 gen = generator.model()
-gen_weights_file_name = './g_pre_weights.hdf5'
 genOpt = Adam(gen_learning_rate)
+
+gen_weights_file_name = './g_pre_weights.hdf5'
 if os.path.isfile(gen_weights_file_name):
     print 'Loading saved gen weights...'
-    gen.load_weights(gen_weights_file_name)
-# gan_generator.make_generator_phase1_trainable(generator, False)
+    pretrained_gen = generator.model()
+    pretrained_gen.load_weights(gen_weights_file_name)
+    pretrained_gen.compile(optimizer=genOpt, loss='binary_crossentropy')
+    pre_trained_phase1_weights = generator.get_generator_phase1_weights(pretrained_gen)
+    generator.set_generator_phase1_weights(gen, pre_trained_phase1_weights)
+
+generator.make_generator_phase1_trainable(gen, False)
+
 gen.compile(optimizer=genOpt, loss='binary_crossentropy')
 gen.summary()
 
@@ -136,8 +143,8 @@ GAN.summary()
 losses = {"d": [], "g": []}
 
 
-def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_iterations=2000, batch_size=150,
-          disc_train_batches=5, gen_train_batches=1):
+def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_iterations=4000, batch_size=150,
+          disc_train_batches=1, gen_train_batches=1):
     # number of examples in data to select
     disc_unsafe_train_n = disc_train_batches * batch_size
     gen_unsafe_train_n = gen_train_batches * batch_size
@@ -334,9 +341,10 @@ def train_for_n_with_batches(nb_iterations=100, BATCH_SIZE=150):
 
 # Train for 6000 epochs at original learning rates
 train(gen, disc, x_train_input, x_train_target)
+save_plot_to_pdf()
 print 'finished training'
 
-save_plot_to_pdf()
+
 n_ex = 100
 image_input_batch_test = x_test_input[0:n_ex, :, :, :]
 noise_test_input = np.random.uniform(0, 1, size=[n_ex, 100])

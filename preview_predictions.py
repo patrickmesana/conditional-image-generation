@@ -2,8 +2,8 @@ import readsample as rs
 import numpy as np
 import display
 
-xrange
-def preview_full(name):
+
+def preview_reconstructed(name):
     x_test_input_unchanged = rs.read_images_from_pkl('validation_input.pkl')
     imgs = rs.read_images_from_pkl(name)
 
@@ -18,21 +18,25 @@ def preview_full(name):
     display.show_reconstructed_images(x_test_input_unchanged, np_images, True)
 
 
-
 def preview_middle(name):
     x_test_input_unchanged = rs.read_images_from_pkl('validation_input.pkl')
     reshaped_decoded_imgs = rs.read_images_from_pkl(name)
-
 
     display.show_reconstructed_images(x_test_input_unchanged, reshaped_decoded_imgs, True)
 
 
 def preview_predictions(name):
     imgs = rs.read_images_from_pkl(name)
-    display.show_images(imgs)
+    display.show_images(imgs, 20, True)
 
-# preview_middle('autoencoder_decoded.pkl')
-# preview_full('gan_decoded.pkl')
-# preview_predictions('convolution_decoded.pkl')
-preview_predictions('./tmp/gen_pre_train_decoded.pkl')
-# preview_full('./tmp/gen_pre_train_decoded.pkl')
+
+def main():
+    # preview_middle('autoencoder_decoded.pkl')
+    preview_predictions('gan_decoded.pkl')
+    # preview_predictions('convolution_decoded.pkl')
+    # preview_predictions('./tmp/gen_pre_train_decoded.pkl')
+    # preview_full('./tmp/gen_pre_train_decoded.pkl')
+
+
+if __name__ == "__main__":
+    main()

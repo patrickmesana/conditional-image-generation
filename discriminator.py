@@ -183,13 +183,13 @@ def main():
     disc.summary()
     gen = generator.model()
 
-    gen.load_weights(gen_weights_file_name)
+    # gen.load_weights(gen_weights_file_name)
     # disc.load_weights(weights_file_name)
 
     gen.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
     x_train_input, x_train_target, x_test_input, x_test_target = load_data()
 
-    train(gen, disc, x_train_input, x_train_target, 82000, accuracy_enable=True, epochs=10)
+    train(gen, disc, x_train_input, x_train_target, 82000, accuracy_enable=True, epochs=1)
 
     # print 'Data loaded'
     # if not os.path.isfile(weights_file_name):

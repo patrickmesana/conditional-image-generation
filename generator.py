@@ -1,7 +1,7 @@
 # if you want to run this on GPU
 # THEANO_FLAGS="device=gpu,floatX=float32" ENV\Scripts\python.exe autoencoder.py
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization, Dropout, \
-    GaussianNoise, LeakyReLU, Deconv2D, Flatten, Reshape, Concatenate
+    GaussianNoise, LeakyReLU, Deconv2D, Flatten, Reshape, Concatenate, ZeroPadding2D, Add
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
 from keras.optimizers import Adam
@@ -22,14 +22,14 @@ def model():
     input_img = Input(shape=(64, 64, 3))
     x = input_img
     # Phase1: trained during  generator pre training but not during gan training
-    x = Conv2D(8, 3, padding='same', strides=2)(x)
-    x = LeakyReLU(0)(x)
-    x = Conv2D(16, 3, padding='same', strides=2)(x)
-    x = LeakyReLU(0)(x)
-    x = Conv2D(32, 3, padding='same', strides=2)(x)
-    x = LeakyReLU(0)(x)
-    x = Conv2D(64, 3, padding='same', strides=2)(x)
-    x = LeakyReLU(0)(x)
+    x = Conv2D(8, 3, padding='same', strides=2, name='phase1_0')(x)
+    x = LeakyReLU(0, name='phase1_1')(x)
+    x = Conv2D(16, 3, padding='same', strides=2, name='phase1_2')(x)
+    x = LeakyReLU(0, name='phase1_3')(x)
+    x = Conv2D(32, 3, padding='same', strides=2, name='phase1_4')(x)
+    x = LeakyReLU(0, name='phase1_5')(x)
+    x = Conv2D(64, 3, padding='same', strides=2, name='phase1_6')(x)
+    x = LeakyReLU(0, name='phase1_7')(x)
 
     input_noise = Input(shape=[100])
     noise = Dense(4 * 4 * 64)(input_noise)
@@ -51,27 +51,34 @@ def model():
     x = LeakyReLU(leaking_factor)(x)
     x = Dropout(dropout_rate)(x)
 
-    decoded = Deconv2D(3, 3, activation='sigmoid', strides=2, padding='same')(x)
+    middle = Conv2D(3, 3, activation='sigmoid', padding='same')(x)
+    middle_with_padding = ZeroPadding2D((16, 16))(middle)
+    recomposed = Add()([input_img, middle_with_padding])
 
     # this model maps an input to its reconstruction
-    autoencoder = Model([input_img, input_noise], decoded)
+    autoencoder = Model([input_img, input_noise], recomposed)
 
     return autoencoder
 
+
 def load_data():
-    x_train_input = rs.read_images_from_pkl('training_input.pkl')
-    x_train_target = rs.read_images_from_pkl('training_target_full.pkl')
-    x_test_input_unchanged = rs.read_images_from_pkl('validation_input.pkl')
-    x_test_target = rs.read_images_from_pkl('validation_target_full.pkl')
-    x_train_input = x_train_input.astype('float32') / 255.
-    x_train_target = x_train_target.astype('float32') / 255.
-    x_test_input = x_test_input_unchanged.astype('float32') / 255.
-    x_test_target = x_test_target.astype('float32') / 255.
-    x_train_input = x_train_input.reshape((len(x_train_input), 64, 64, 3))
-    x_train_target = x_train_target.reshape((len(x_train_target), 64, 64, 3))
-    x_test_input = x_test_input.reshape((len(x_test_input), 64, 64, 3))
-    x_test_target = x_test_target.reshape((len(x_test_target), 64, 64, 3))
-    return x_train_input, x_train_target, x_test_input, x_test_target
+    x_train_input = normalize_sample(rs.read_images_from_pkl('training_input.pkl'))
+    x_train_target = normalize_sample(rs.read_images_from_pkl('training_target_full.pkl'))
+    x_test_input = normalize_sample(rs.read_images_from_pkl('validation_input.pkl'))
+    x_test_target = normalize_sample(rs.read_images_from_pkl('validation_target_full.pkl'))
+    x_train_target_middle = normalize_sample(rs.read_images_from_pkl('training_target.pkl'))
+    x_test_target_middle = normalize_sample(rs.read_images_from_pkl('validation_target.pkl'))
+    return x_train_input, x_train_target, x_test_input, x_test_target, x_train_target_middle, x_test_target_middle
+
+
+def normalize_sample(sample):
+    size = sample.shape[0]
+    s1 = sample.shape[1]
+    s2 = sample.shape[2]
+    s3 = sample.shape[3]
+    sample1 = sample.astype('float32') / 255.
+    sample2 = sample1.reshape((size, s1, s2, s3))
+    return sample2
 
 
 def train(autoencoder, train_input, x_train_target, test_input, x_test_target):
@@ -97,7 +104,7 @@ def predict(autoencoder, x_test_input, x_test_target):
 
 
 def train_and_predict():
-    x_train_input, x_train_target, x_test_input, x_test_target = load_data()
+    x_train_input, x_train_target, x_test_input, x_test_target, x_train_target_middle, x_test_target_middle = load_data()
     autoencoder = model()
     noise_train_input = np.random.uniform(0, 1, size=[x_train_input.shape[0], 100])
     noise_test_input = np.random.uniform(0, 1, size=[x_test_input.shape[0], 100])
@@ -123,7 +130,6 @@ def train_and_predict():
         #     print d_loss
         #     print '==========='
 
-
         history = train(autoencoder, [x_train_input, noise_train_input], x_train_target,
                         [x_test_input, noise_test_input], x_test_target)
         print(history.history.keys())
@@ -134,10 +140,26 @@ def train_and_predict():
 
 
 def make_generator_phase1_trainable(net, val):
-    for i in range(1, 9):
+    for i in range(0, 8):
         i_name = 'phase1_%d' % i
         l = net.get_layer(i_name)
         l.trainable = val
+
+
+def get_generator_phase1_weights(net):
+    weights_list = []
+    for i in range(0, 8):
+        i_name = 'phase1_%d' % i
+        l = net.get_layer(i_name)
+        weights_list.append(l.get_weights())
+    return weights_list
+
+
+def set_generator_phase1_weights(net, weights_list):
+    for i in range(0, 8):
+        i_name = 'phase1_%d' % i
+        l = net.get_layer(i_name)
+        l.set_weights(weights_list[i])
 
 
 if __name__ == "__main__":
