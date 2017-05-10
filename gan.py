@@ -4,7 +4,7 @@
 #
 import os, random, shutil
 import numpy as np
-from keras.layers import Input
+from keras.layers import Input, Lambda
 from keras.optimizers import *
 import matplotlib.pyplot as plt
 import cPickle, random, sys, keras
@@ -17,6 +17,8 @@ from keras import losses
 import time
 import generator
 import discriminator
+from keras import backend as k
+import theano.tensor as T
 
 tmpDir = './tmp'
 if os.path.exists(tmpDir):
@@ -52,23 +54,16 @@ x_test_target = rs.read_images_from_pkl('validation_target_full.pkl')
 x_train_input = x_train_input.astype('float32') / 255.
 x_train_target = x_train_target.astype('float32') / 255.
 x_test_input = x_test_input_unchanged.astype('float32') / 255.
-# x_test_target = x_test_target.astype('float32') / 255.
+x_test_target = x_test_target.astype('float32') / 255.
 x_train_input = x_train_input.reshape((len(x_train_input), 64, 64, 3))
-# x_train_target = x_train_target.reshape((len(x_train_target), 64, 64, 3))
+x_train_target = x_train_target.reshape((len(x_train_target), 64, 64, 3))
 x_test_input = x_test_input.reshape((len(x_test_input), 64, 64, 3))
-# x_test_target = x_test_target.reshape((len(x_test_target), 64, 64, 3))
+x_test_target = x_test_target.reshape((len(x_test_target), 64, 64, 3))
 
 
 X_train = x_train_target
-X_test = x_train_target
-disc_learning_rate = 0.000001
+disc_learning_rate = 0.00001
 gen_learning_rate = disc_learning_rate
-
-print np.min(X_train), np.max(X_train)
-
-print('X_train shape:', X_train.shape)
-print(X_train.shape[0], 'train samples')
-print(X_test.shape[0], 'test samples')
 
 
 # the weights are not updated, need to compile again to take into account
@@ -92,7 +87,7 @@ if os.path.isfile(gen_weights_file_name):
     pre_trained_phase1_weights = generator.get_generator_phase1_weights(pretrained_gen)
     generator.set_generator_phase1_weights(gen, pre_trained_phase1_weights)
 
-generator.make_generator_phase1_trainable(gen, False)
+# generator.make_generator_phase1_trainable(gen, False)
 
 gen.compile(optimizer=genOpt, loss='binary_crossentropy')
 gen.summary()
@@ -132,11 +127,26 @@ def save_plot_to_pdf():
 
 # Build stacked GAN model
 gan_input = Input(shape=(64, 64, 3))
+gan_output = Input(shape=(2,))
+gen_output = Input(shape=(64, 64, 3))
 noise_shape = Input(shape=[100])
 H = gen([gan_input, noise_shape])
-gan_V = disc(H)  # set of layers?
-GAN = Model([gan_input, noise_shape], gan_V)
-GAN.compile(loss='categorical_crossentropy', optimizer=genOpt)
+gan_V = disc(H)
+
+
+def customized_loss(args):
+    gan_arg, gan_target_arg, gen_arg, gen_target = args
+    custom_disc_loss = k.categorical_crossentropy(gan_arg, gan_target_arg)
+    custom_gen_loss = k.binary_crossentropy(gen_arg, gen_target)
+    return custom_gen_loss
+
+
+loss_out = Lambda(customized_loss, output_shape=(1,), name='joint_loss')([gan_V, gan_output, H, gen_output])
+GAN = Model([gan_input, noise_shape, gan_output, gen_output], loss_out)
+GAN.compile(loss={'joint_loss': lambda y_true, y_pred: y_pred}, optimizer=genOpt)
+
+# GAN = Model([gan_input, noise_shape], gan_V)
+# GAN.compile(loss='categorical_crossentropy', optimizer=genOpt)
 GAN.summary()
 
 # set up loss storage vector
@@ -160,6 +170,7 @@ def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_ite
         # ==== training discriminator =====
         print 'training discriminator'
         make_disciminator_trainable(disc, True)
+        # GAN.get_layer('joint_loss').trainable = True
         d_history = discriminator.train(gen_model, disc_model, training_set_cropped, training_set_full,
                                         disc_unsafe_train_n,
                                         batch_size)
@@ -171,6 +182,7 @@ def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_ite
         # ==== training generator =====
         print 'training generator'
         make_disciminator_trainable(disc, False)
+        # GAN.get_layer('joint_loss').trainable = False
         g_history = fit(GAN, batch_size, gen_unsafe_train_n, training_set_cropped, training_set_full)
 
         g_loss = g_history.history['loss'][0]
@@ -201,10 +213,13 @@ def fit(gan_model, batch_size, gen_unsafe_train_n, training_set_cropped, trainin
     training_full_selected = training_set_full[training_indexes, :, :, :]
     # transform the noise[100] into an image
     noise = np.random.uniform(0, 1, size=[gen_unsafe_train_n, 100])
-    x = [training_cropped_selected, noise]
+
     train_n = training_full_selected.shape[0]
     y = np.zeros([train_n, 2])
     y[:train_n, 1] = 1
+
+    x = [training_cropped_selected, noise, y, training_full_selected]
+
     g_history = gan_model.fit(x, y, epochs=1, shuffle='batch', batch_size=batch_size)
     return g_history
 
@@ -343,7 +358,6 @@ def train_for_n_with_batches(nb_iterations=100, BATCH_SIZE=150):
 train(gen, disc, x_train_input, x_train_target)
 save_plot_to_pdf()
 print 'finished training'
-
 
 n_ex = 100
 image_input_batch_test = x_test_input[0:n_ex, :, :, :]
