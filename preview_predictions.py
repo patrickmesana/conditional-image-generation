@@ -27,14 +27,14 @@ def preview_middle(name):
 
 def preview_predictions(name):
     imgs = rs.read_images_from_pkl(name)
-    display.show_images(imgs, 20, True)
+    display.show_images(imgs, 5, True)
 
 
 def main():
     # preview_middle('autoencoder_decoded.pkl')
-    preview_predictions('gan_decoded.pkl')
+    # preview_predictions('gan_decoded.pkl')
     # preview_predictions('convolution_decoded.pkl')
-    # preview_predictions('./tmp/gen_pre_train_decoded.pkl')
+    preview_predictions('./tmp/gen_pre_train_decoded.pkl')
     # preview_full('./tmp/gen_pre_train_decoded.pkl')
 
 

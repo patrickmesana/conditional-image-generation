@@ -15,7 +15,7 @@ def show_reconstructed_images(inputs, outputs, saveImageOnDisk, n = 5):
 def show_images(inputs, n = 5, saveImageOnDisk= False):
     for i in range(0, n):
         if saveImageOnDisk:
-            Image.fromarray(inputs[i]).save('PredictedImage{i}.jpg'.format(i=i))
+            Image.fromarray(inputs[i]).save('./tmp/PredictedImage{i}.jpg'.format(i=i))
         else:
             Image.fromarray(inputs[i]).show()
 

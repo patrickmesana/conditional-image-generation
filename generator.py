@@ -56,7 +56,7 @@ def model():
     recomposed = Add()([input_img, middle_with_padding])
 
     # this model maps an input to its reconstruction
-    autoencoder = Model([input_img, input_noise], recomposed)
+    autoencoder = Model([input_img, input_noise], recomposed, name='Generator')
 
     return autoencoder
 
@@ -86,7 +86,7 @@ def train(autoencoder, train_input, x_train_target, test_input, x_test_target):
     checkpoint = ModelCheckpoint(filepath=weights_file_name, verbose=1, save_best_only=True)
 
     history = autoencoder.fit(train_input, x_train_target,
-                              epochs=100,
+                              epochs=5,
                               batch_size=250,
                               shuffle=True,
                               validation_data=(test_input, x_test_target),
@@ -115,7 +115,7 @@ def train_and_predict():
         if os.path.exists(tmpDir):
             shutil.rmtree(tmpDir)
         os.makedirs(tmpDir)
-        autoencoder.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
+        autoencoder.compile(optimizer=Adam(0.0001), loss='binary_crossentropy', metrics=['accuracy'])
         print 'starting training...'
         autoencoder.summary()
 

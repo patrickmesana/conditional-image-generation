@@ -149,7 +149,7 @@ def model():
     x = LeakyReLU(leaky_factor)(x)
     x = Dropout(dropout_rate)(x)
     x = Dense(2, activation='softmax')(x)
-    disc = Model(d_input, x)
+    disc = Model(d_input, x, name='Discriminator')
     return disc
 
 

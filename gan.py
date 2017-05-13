@@ -17,8 +17,6 @@ from keras import losses
 import time
 import generator
 import discriminator
-from keras import backend as k
-import theano.tensor as T
 
 tmpDir = './tmp'
 if os.path.exists(tmpDir):
@@ -81,13 +79,7 @@ genOpt = Adam(gen_learning_rate)
 gen_weights_file_name = './g_pre_weights.hdf5'
 if os.path.isfile(gen_weights_file_name):
     print 'Loading saved gen weights...'
-    pretrained_gen = generator.model()
-    pretrained_gen.load_weights(gen_weights_file_name)
-    pretrained_gen.compile(optimizer=genOpt, loss='binary_crossentropy')
-    pre_trained_phase1_weights = generator.get_generator_phase1_weights(pretrained_gen)
-    generator.set_generator_phase1_weights(gen, pre_trained_phase1_weights)
-
-# generator.make_generator_phase1_trainable(gen, False)
+    gen.load_weights(gen_weights_file_name)
 
 gen.compile(optimizer=genOpt, loss='binary_crossentropy')
 gen.summary()
@@ -127,34 +119,21 @@ def save_plot_to_pdf():
 
 # Build stacked GAN model
 gan_input = Input(shape=(64, 64, 3))
-gan_output = Input(shape=(2,))
-gen_output = Input(shape=(64, 64, 3))
 noise_shape = Input(shape=[100])
 H = gen([gan_input, noise_shape])
 gan_V = disc(H)
 
 
-def customized_loss(args):
-    gan_arg, gan_target_arg, gen_arg, gen_target = args
-    custom_disc_loss = k.categorical_crossentropy(gan_arg, gan_target_arg)
-    custom_gen_loss = k.binary_crossentropy(gen_arg, gen_target)
-    return custom_gen_loss
-
-
-loss_out = Lambda(customized_loss, output_shape=(1,), name='joint_loss')([gan_V, gan_output, H, gen_output])
-GAN = Model([gan_input, noise_shape, gan_output, gen_output], loss_out)
-GAN.compile(loss={'joint_loss': lambda y_true, y_pred: y_pred}, optimizer=genOpt)
-
-# GAN = Model([gan_input, noise_shape], gan_V)
-# GAN.compile(loss='categorical_crossentropy', optimizer=genOpt)
+GAN = Model(inputs=[gan_input, noise_shape], outputs=[gan_V, H])
+GAN.compile(loss=['categorical_crossentropy', 'binary_crossentropy'], optimizer=genOpt, loss_weights=[0., 1.])
 GAN.summary()
 
 # set up loss storage vector
 losses = {"d": [], "g": []}
 
 
-def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_iterations=4000, batch_size=150,
-          disc_train_batches=1, gen_train_batches=1):
+def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_iterations=10, batch_size=150,
+          disc_train_batches=5, gen_train_batches=400):
     # number of examples in data to select
     disc_unsafe_train_n = disc_train_batches * batch_size
     gen_unsafe_train_n = gen_train_batches * batch_size
@@ -163,26 +142,25 @@ def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_ite
         start = time.time()
 
         # saving predicted images to show progress
-        if e % 10 == 0:
+        if e % 1 == 0:
             noise5 = np.random.uniform(0, 1, size=[5, 100])
             show_denormalized(gen.predict([x_test_input[0:5], noise5])[3], e)
 
         # ==== training discriminator =====
-        print 'training discriminator'
-        make_disciminator_trainable(disc, True)
-        # GAN.get_layer('joint_loss').trainable = True
-        d_history = discriminator.train(gen_model, disc_model, training_set_cropped, training_set_full,
-                                        disc_unsafe_train_n,
-                                        batch_size)
-        d_loss = d_history.history['loss'][0]
-        losses["d"].append(float(d_loss))
-        if logs_enabled:
-            disc.save_weights('./tmp/logs/d_weights_{i}.hdf5'.format(i=e))
+
+        # print 'training discriminator'
+        # make_disciminator_trainable(disc, True)
+        # d_history = discriminator.train(gen_model, disc_model, training_set_cropped, training_set_full,
+        #                                 disc_unsafe_train_n,
+        #                                 batch_size)
+        # d_loss = d_history.history['loss'][0]
+        # losses["d"].append(float(d_loss))
+        # if logs_enabled:
+        #     disc.save_weights('./tmp/logs/d_weights_{i}.hdf5'.format(i=e))
 
         # ==== training generator =====
         print 'training generator'
         make_disciminator_trainable(disc, False)
-        # GAN.get_layer('joint_loss').trainable = False
         g_history = fit(GAN, batch_size, gen_unsafe_train_n, training_set_cropped, training_set_full)
 
         g_loss = g_history.history['loss'][0]
@@ -194,8 +172,8 @@ def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_ite
         print 'duration : %0.02f' % (end - start)
         print '============================='
 
-        if logs_enabled:
-            loss_logs.write('%d%0.02f,%0.02f\n' % (e, d_loss, g_loss))
+        # if logs_enabled:
+        #     loss_logs.write('%d%0.02f,%0.02f\n' % (e, d_loss, g_loss))
 
         if e > 0:
             clear_plot()
@@ -218,9 +196,9 @@ def fit(gan_model, batch_size, gen_unsafe_train_n, training_set_cropped, trainin
     y = np.zeros([train_n, 2])
     y[:train_n, 1] = 1
 
-    x = [training_cropped_selected, noise, y, training_full_selected]
+    x = [training_cropped_selected, noise]
 
-    g_history = gan_model.fit(x, y, epochs=1, shuffle='batch', batch_size=batch_size)
+    g_history = gan_model.fit(x, [y, training_full_selected], epochs=2, shuffle='batch', batch_size=250)
     return g_history
 
 
