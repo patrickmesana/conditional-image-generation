@@ -18,7 +18,7 @@ weights_file_name = './tmp/g_pre_weights.hdf5'
 
 def model():
     dropout_rate = 0.1
-    leaking_factor = 0.1
+    leaking_factor = 0.2
     input_img = Input(shape=(64, 64, 3))
     x = input_img
     # Phase1: trained during  generator pre training but not during gan training
@@ -28,26 +28,20 @@ def model():
     x = LeakyReLU(0, name='phase1_3')(x)
     x = Conv2D(32, 3, padding='same', strides=2, name='phase1_4')(x)
     x = LeakyReLU(0, name='phase1_5')(x)
-    x = Conv2D(64, 3, padding='same', strides=2, name='phase1_6')(x)
-    x = LeakyReLU(0, name='phase1_7')(x)
 
     input_noise = Input(shape=[100])
-    noise = Dense(4 * 4 * 64)(input_noise)
+    noise = Dense(8 * 8 * 2)(input_noise)
     noise = LeakyReLU(leaking_factor)(noise)
-    noise = Reshape([4, 4, 64])(noise)
+    noise = Reshape([8, 8, 2])(noise)
     x = Concatenate()([x, noise])
 
     # Phase 2
-    x = Deconv2D(64, 3, padding='same')(x)
-    x = LeakyReLU(leaking_factor)(x)
-    x = Dropout(dropout_rate)(x)
-    x = Deconv2D(32, 3, padding='same', strides=2)(x)
-    x = LeakyReLU(leaking_factor)(x)
-    x = Dropout(dropout_rate)(x)
     x = Deconv2D(16, 3, padding='same', strides=2)(x)
+    # x = BatchNormalization()(x)
     x = LeakyReLU(leaking_factor)(x)
     x = Dropout(dropout_rate)(x)
     x = Deconv2D(8, 3, padding='same', strides=2)(x)
+    # x = BatchNormalization()(x)
     x = LeakyReLU(leaking_factor)(x)
     x = Dropout(dropout_rate)(x)
 
@@ -86,7 +80,7 @@ def train(autoencoder, train_input, x_train_target, test_input, x_test_target):
     checkpoint = ModelCheckpoint(filepath=weights_file_name, verbose=1, save_best_only=True)
 
     history = autoencoder.fit(train_input, x_train_target,
-                              epochs=5,
+                              epochs=200,
                               batch_size=250,
                               shuffle=True,
                               validation_data=(test_input, x_test_target),

@@ -125,15 +125,15 @@ gan_V = disc(H)
 
 
 GAN = Model(inputs=[gan_input, noise_shape], outputs=[gan_V, H])
-GAN.compile(loss=['categorical_crossentropy', 'binary_crossentropy'], optimizer=genOpt, loss_weights=[0., 1.])
+GAN.compile(loss=['categorical_crossentropy', 'binary_crossentropy'], optimizer=genOpt, loss_weights=[0.1, 1.])
 GAN.summary()
 
 # set up loss storage vector
 losses = {"d": [], "g": []}
 
 
-def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_iterations=10, batch_size=150,
-          disc_train_batches=5, gen_train_batches=400):
+def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_iterations=1000, batch_size=150,
+          disc_train_batches=300, gen_train_batches=30):
     # number of examples in data to select
     disc_unsafe_train_n = disc_train_batches * batch_size
     gen_unsafe_train_n = gen_train_batches * batch_size
@@ -148,15 +148,15 @@ def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_ite
 
         # ==== training discriminator =====
 
-        # print 'training discriminator'
-        # make_disciminator_trainable(disc, True)
-        # d_history = discriminator.train(gen_model, disc_model, training_set_cropped, training_set_full,
-        #                                 disc_unsafe_train_n,
-        #                                 batch_size)
-        # d_loss = d_history.history['loss'][0]
-        # losses["d"].append(float(d_loss))
-        # if logs_enabled:
-        #     disc.save_weights('./tmp/logs/d_weights_{i}.hdf5'.format(i=e))
+        print 'training discriminator'
+        make_disciminator_trainable(disc, True)
+        d_history = discriminator.train(gen_model, disc_model, training_set_cropped, training_set_full,
+                                        disc_unsafe_train_n,
+                                        batch_size)
+        d_loss = d_history.history['loss'][0]
+        losses["d"].append(float(d_loss))
+        if logs_enabled:
+            disc.save_weights('./tmp/logs/d_weights_{i}.hdf5'.format(i=e))
 
         # ==== training generator =====
         print 'training generator'
@@ -172,8 +172,8 @@ def train(gen_model, disc_model, training_set_cropped, training_set_full, nb_ite
         print 'duration : %0.02f' % (end - start)
         print '============================='
 
-        # if logs_enabled:
-        #     loss_logs.write('%d%0.02f,%0.02f\n' % (e, d_loss, g_loss))
+        if logs_enabled:
+            loss_logs.write('%d%0.02f,%0.02f\n' % (e, d_loss, g_loss))
 
         if e > 0:
             clear_plot()
@@ -198,7 +198,7 @@ def fit(gan_model, batch_size, gen_unsafe_train_n, training_set_cropped, trainin
 
     x = [training_cropped_selected, noise]
 
-    g_history = gan_model.fit(x, [y, training_full_selected], epochs=2, shuffle='batch', batch_size=250)
+    g_history = gan_model.fit(x, [y, training_full_selected], epochs=1, shuffle='batch', batch_size=batch_size)
     return g_history
 
 

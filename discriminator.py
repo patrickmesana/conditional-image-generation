@@ -129,7 +129,7 @@ def train_batches_with_generated_images(gen, x_train_input, X_train, disc_batch_
 
 def model():
     dropout_rate = 0.2
-    leaky_factor = 0.1
+    leaky_factor = 0.2
     d_input = Input(shape=(64, 64, 3))
     x = Convolution2D(8, 3, strides=2, padding='same')(d_input)
     x = LeakyReLU(leaky_factor)(x)
@@ -179,17 +179,17 @@ def load_data():
 def main():
     delete_and_create_tmp()
     disc = model()
-    disc.compile(loss='categorical_crossentropy', optimizer=Adam(0.0001), metrics=['accuracy'])
+    disc.compile(loss='categorical_crossentropy', optimizer=Adam(0.00001), metrics=['accuracy'])
     disc.summary()
     gen = generator.model()
 
-    # gen.load_weights(gen_weights_file_name)
+    gen.load_weights(gen_weights_file_name)
     # disc.load_weights(weights_file_name)
 
     gen.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
     x_train_input, x_train_target, x_test_input, x_test_target = load_data()
 
-    train(gen, disc, x_train_input, x_train_target, 82000, accuracy_enable=True, epochs=1)
+    train(gen, disc, x_train_input, x_train_target, 82000, accuracy_enable=True, epochs=10)
 
     # print 'Data loaded'
     # if not os.path.isfile(weights_file_name):
